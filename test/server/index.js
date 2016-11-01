@@ -95,6 +95,7 @@ describe('gracenode with  gracenode-server/', function () {
 		});
 		gn.use('server', '../../gracenode-server');
 		gn.start(function () {
+			gn.lib.CryptoEngine.skipRate(2);
 			gn.mod.server.addRequestHooks(function reqAllHook(req, cb) {
 				allRequestHookCalled = true;
 				cb();
