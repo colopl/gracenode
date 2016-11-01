@@ -16,6 +16,8 @@ It is very useful to build distributed-network system in real-time.
 
 #### RPC and UDP encryption/decryption performance improvement 
 
+#### Added a way to skip encryption/decryption at certain rate (NOT recommanded)
+
 ## Deprecated
 
 #### gracenode.registerShutdownTask()
