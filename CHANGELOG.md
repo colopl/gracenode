@@ -2,7 +2,7 @@
 
 This is a list of manually mantained changes and updates for each version.
 
-## Version 3.5.42
+## Version 3.5.43
 
 ## Added
 
@@ -14,7 +14,7 @@ It is very useful to build distributed-network system in real-time.
 
 ## Changed
 
-#### RPC and UDP encryption/decryption performance improvement 
+#### RPC and UDP encryption/decryption performance improvements (CTR-MODE)
 
 #### Added a way to skip encryption/decryption at certain rate (NOT recommanded)
 
@@ -3360,7 +3360,6 @@ None
 
 #### Dependency aeterno module's version updated to 0.4.7
 
-<<<<<<< HEAD
 There are many changes and added features for daemonizing your application:
 
 https://github.com/voltrue2/gracenode#daemonizing-your-application-process
@@ -3372,11 +3371,6 @@ There are many changes and added features for logging:
 https://github.com/voltrue2/gracenode/tree/develop/modules/log
 
 #### Dependency floodnet module's version updated to 0.1.0
-=======
-#### Dependency gracelog module's version updated to 0.5.1
-
-#### Dependency flootnet module's version updated to 0.1.0
->>>>>>> 2.0
 
 ## Deprecated
 
