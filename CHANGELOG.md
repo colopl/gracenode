@@ -2,6 +2,42 @@
 
 This is a list of manually mantained changes and updates for each version.
 
+## Version 3.5.53
+
+## Added
+
+None
+
+#### [Planned] Gracenode process internal communication via UDP protocol (Mesh Network)
+
+Gracenode internal communication (gic) is a de-centralized mesh network that enables all gracenode processes includingremote processes to comunicate to one another.
+
+It is very useful to build distributed-network system in real-time.
+
+## Changed
+
+#### Minimum supported version of node.js has changed from 0.12.0 to 4.0.0
+
+#### Overall performance improvements by switching to minimum support version
+
+#### RPC connection kill by error log removed stack trace
+
+## Deprecated
+
+#### gracenode.registerShutdownTask()
+
+#### gracenode.router
+
+Please use `gracenode.http` instead.
+
+#### gracenode.lib.cloneObj()
+
+## Removed
+
+None
+
+***
+
 ## Version 3.5.52
 
 ## Added
