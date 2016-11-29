@@ -2,7 +2,40 @@
 
 This is a list of manually mantained changes and updates for each version.
 
-## Version 3.5.54
+## Version 3.5.0
+
+## Added
+
+#### RPC and UDP added a new protocol: version 10 to allow batched commands
+
+#### [Planned] Gracenode process internal communication via UDP protocol (Mesh Network)
+
+Gracenode internal communication (gic) is a de-centralized mesh network that enables all gracenode processes includingremote processes to comunicate to one another.
+
+It is very useful to build distributed-network system in real-time.
+
+## Changed
+
+#### Bug fix: HTTP disabling gzip was not working properly
+
+## Deprecated
+
+#### gracenode.registerShutdownTask()
+
+#### gracenode.router
+
+Please use `gracenode.http` instead.
+
+#### gracenode.lib.cloneObj()
+
+## Removed
+
+None
+
+***
+
+
+## Version 3.4.54
 
 ## Added
 
@@ -34,7 +67,7 @@ None
 
 ***
 
-## Version 3.5.53
+## Version 3.4.53
 
 ## Added
 
@@ -70,7 +103,7 @@ None
 
 ***
 
-## Version 3.5.52
+## Version 3.4.52
 
 ## Added
 
@@ -102,7 +135,7 @@ None
 
 ***
 
-## Version 3.5.51
+## Version 3.4.51
 
 ## Added
 
@@ -134,7 +167,7 @@ None
 
 ***
 
-## Version 3.5.50
+## Version 3.4.50
 
 ## Added
 
@@ -166,7 +199,7 @@ None
 
 ***
 
-## Version 3.5.49
+## Version 3.4.49
 
 ## Added
 
@@ -199,7 +232,7 @@ None
 ***
 
 
-## Version 3.5.48
+## Version 3.4.48
 
 ## Added
 
@@ -242,7 +275,7 @@ None
 
 ***
 
-## Version 3.5.47
+## Version 3.4.47
 
 ## Added
 
@@ -276,7 +309,7 @@ None
 
 ***
 
-## Version 3.5.46
+## Version 3.4.46
 
 ## Added
 
@@ -312,7 +345,7 @@ None
 
 ***
 
-## Version 3.5.45
+## Version 3.4.45
 
 ## Added
 
@@ -342,7 +375,7 @@ None
 
 ***
 
-## Version 3.5.44
+## Version 3.4.44
 
 ## Added
 
@@ -372,7 +405,7 @@ None
 
 ***
 
-## Version 3.5.43
+## Version 3.4.43
 
 ## Added
 
@@ -404,7 +437,7 @@ None
 
 ***
 
-## Version 3.5.41
+## Version 3.4.41
 
 ## Added
 
@@ -434,7 +467,7 @@ None
 
 ***
 
-## Version 3.5.40
+## Version 3.4.40
 
 ## Added
 
@@ -464,7 +497,7 @@ None
 
 ***
 
-## Version 3.5.39
+## Version 3.4.39
 
 ## Added
 
@@ -494,7 +527,7 @@ None
 
 ***
 
-## Version 3.5.38
+## Version 3.4.38
 
 ## Added
 
@@ -526,7 +559,7 @@ None
 
 ***
 
-## Version 3.5.37
+## Version 3.4.37
 
 ## Added
 
@@ -554,7 +587,7 @@ None
 
 ***
 
-## Version 3.5.36
+## Version 3.4.36
 
 ## Added
 
@@ -582,7 +615,7 @@ None
 
 ***
 
-## Version 3.5.35
+## Version 3.4.35
 
 ## Added
 
@@ -608,7 +641,7 @@ None
 
 ***
 
-## Version 3.5.34
+## Version 3.4.34
 
 ## Added
 
@@ -624,7 +657,7 @@ Previously it was considering `65536` to be invalid.
 
 The range is `0` > and => `65536`.
 
-## Version 3.5.33
+## Version 3.4.33
 
 ## Added
 
@@ -652,7 +685,7 @@ None
 
 ***
 
-## Version 3.5.32
+## Version 3.4.32
 
 ## Added
 
@@ -678,7 +711,7 @@ None
 
 ***
 
-## Version 3.5.31
+## Version 3.4.31
 
 ## Added
 
@@ -706,7 +739,7 @@ None
 
 ***
 
-# Version 3.5.30
+# Version 3.4.30
 
 ## Added
 
@@ -732,7 +765,7 @@ None
 
 ***
 
-## Version 3.5.29
+## Version 3.4.29
 
 ## Added
 
@@ -762,7 +795,7 @@ None
 
 ***
 
-## Version 3.5.28
+## Version 3.4.28
 
 ## Added
 
@@ -790,7 +823,7 @@ None
 
 ***
 
-## Version 3.5.27
+## Version 3.4.27
 
 ## Added
 
@@ -816,7 +849,7 @@ None
 
 ***
 
-## Version 3.5.26
+## Version 3.4.26
 
 ## Added
 
@@ -846,7 +879,7 @@ None
 
 ***
 
-## Version 3.5.25
+## Version 3.4.25
 
 ## Added
 
