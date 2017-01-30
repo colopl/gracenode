@@ -10,10 +10,15 @@ const rpc = require('./rpc');
 const router = require('./router');
 var logger;
 var heartbeatConf;
+var cryptoEngine;
 
 module.exports.setup = function __rpcConnectionSetup() {
 	logger = gn.log.create('RPC.connection');
 	heartbeatConf = gn.getConfig('rpc.heartbeat');
+};
+
+module.exports.useCryptoEngine = function __rpcConnectionUseCryptoEngine(_cryptoEngine) {
+	cryptoEngine = _cryptoEngine;
 };
 
 module.exports.create = function __rpcConnectionCreate(sock) {
@@ -44,7 +49,6 @@ function Connection(sock) {
 		that.kill(error);
 	};
 	this.parser = new transport.Stream();
-	this.crypto = null;
 	this.connected = true;
 	this.name = '{ID:' + this.id + '|p:' + sock.localPort + '|' + you + '}';
 	this.heartbeatTime = Date.now();
@@ -53,7 +57,7 @@ function Connection(sock) {
 	});
 	this.sock.on('end', function __rpcConnectionOnEnd() {
 		logger.debug(that.name, 'TCP connection ended by client');
-		that.close();
+		that.kill(new Error('TCP disconnected by client'));
 	});
 	this.sock.on('error', function __rpcConnectionOnError(error) {
 		logger.error(that.name, 'TCP connection error detected:', error);
@@ -75,7 +79,6 @@ function Connection(sock) {
 
 utils.inherits(Connection, EventEmitter);
 
-
 Connection.prototype._send = function __rpcConnectionSend(payload) {
 	this._push(payload);
 };
@@ -94,12 +97,7 @@ Connection.prototype._respond = function __rpcConnectionRespond(payload, status,
 		}
 	}
 	const that = this;
-	this._write(
-		error,
-		status,
-		this.state.seq,
-		payload,
-		function __rpcConnectionOnWrite() {
+	const _rpcConnectionRespond = function () {
 		if (options) {
 			if (options.closeAfterReply) {
 				return that.close();
@@ -108,18 +106,30 @@ Connection.prototype._respond = function __rpcConnectionRespond(payload, status,
 				return that.kill();
 			}
 		}
-	});
+	};
+	this._write(error, status, this.state.seq, payload, _rpcConnectionRespond);
 };
 
 Connection.prototype._checkHeartbeat = function __rpcConnectionHeartbeatChecker() {
-	if (!this.connected) {
-		return;
-	}
-	if (this.isTimedout()) {
-		if (this.sock) {
-			this.sock.emit('timeout', new Error('RPC heartbeat timeout'));
+	try {
+		if (!this.connected) {
+			if (this.sock) {
+				this.sock.emit('error', new Error('RPC connection lost'));
+			} else {
+				this.emit('clear', true, this.id);
+			}
+			return;
 		}
-		return;
+		if (this.isTimedout()) {
+			if (this.sock) {
+				this.sock.emit('timeout', new Error('RPC heartbeat timeout'));
+			} else {
+				this.emit('clear', true, this.id);
+			}
+			return;
+		}
+	} catch (error) {
+		logger.error(this.name, 'TCP heartbeat error:', error);		
 	}
 	const that = this;
 	setTimeout(function () {
@@ -134,21 +144,20 @@ Connection.prototype.isTimedout = function __rpcConnectionIsTimedout() {
 	return false;
 };
 
-Connection.prototype.useCryptoEngine = function __rpcConnectionUseCryptoEngine(engine) {
-	this.crypto = engine;
-};
-
 Connection.prototype.close = function __rpcConnectionClose(error) {
 	if (this.sock) {
 		try {
-			this.sock.end();
+			if (error) {
+				logger.error(this.name, 'TCP connection closed by error:', error);
+				// force close (closed)
+				this.sock.destroy();
+			} else {
+				logger.debug(this.name, 'TCP connection closed');
+				// send FIN packet (half-closed)
+				this.sock.end();
+			}
 		} catch (e) {
-			logger.error('socket end failed:', e);	
-		}
-		if (error) {
-			logger.error(this.name, 'TCP connection closed by error:', error);
-		} else {
-			logger.debug(this.name, 'TCP connection closed');
+			logger.error(this.name, 'TCP socket end failed:', e);	
 		}
 	}
 	this._clear();
@@ -164,19 +173,19 @@ Connection.prototype.kill = function __rpcConnectionKill(error) {
 		try {
 			this.sock.destroy();
 		} catch (e) {
-			logger.error('socket destory failed:', e);
+			logger.error(this.name, 'TCP socket destory failed:', e);
 		}
 	}
 	this._clear(true);
 };
 
 Connection.prototype._data = function __rpcConnectionDataHandler(packet) {
-	const that = this;
 	const parsed = this.parser.parse(packet);
 	if (parsed instanceof Error) {
 		return this.kill(parsed);
 	}
 	this.heartbeatTime = Date.now();
+	const that = this;
 	const done = function __rpcConnectionDataHandlerDone(error) {
 		if (error) {
 			return that.kill(error);
@@ -191,42 +200,37 @@ Connection.prototype._data = function __rpcConnectionDataHandler(packet) {
 };
 
 Connection.prototype._decrypt = function __rpcConnectionDecrypt(parsedData, cb) {
-	if (this.crypto && this.crypto.decrypt) {
-		const that = this;
+	// handle command routing
+	const cmd = router.route(this.name, parsedData);
+	// execute command w/ encryption and decryption
+	if (cryptoEngine && cryptoEngine.decrypt) {
 		if (!this.sock) {
 			return cb(new Error('SocketUnexceptedlyGone'));
 		}
-		setImmediate(function () {
-			that.crypto.decrypt(
-				parsedData.payload,
-				gn.session.PROTO.RPC,
-				that.sock.remoteAddress,
-				that.sock.remotePort,
-				function __rpcConnectionOnDecrypt(error, sid, seq, sdata, decrypted) {
-					if (error) {
-						return cb(error);
-					}
-					const sess = {
-						sessionId: sid,
-						seq: seq,
-						data: sdata
-					};
-					parsedData.payload = decrypted;
-					that._routeAndExec(parsedData, sess, cb);
-				}
-			);
-		});
+		const that = this;
+		const _onDec = function __rpcConnectionOnDecrypt(error, sid, seq, sdata, decrypted) {
+			if (error) {
+				return cb(error);
+			}
+			const sess = {
+				sessionId: sid,
+				seq: seq,
+				data: sdata
+			};
+			parsedData.payload = decrypted;
+			if (!cmd) {
+				return that._errorResponse(parsedData, sess, cb);
+			}
+			that._execCmd(cmd, parsedData, sess, cb);
+		};
+		cryptoEngine.decrypt(parsedData.payload, gn.session.PROTO.RPC, this.sock.remoteAddress, this.sock.remotePort, _onDec);
 		return;
 	}
-	this._routeAndExec(parsedData, null, cb);
-};
-
-Connection.prototype._routeAndExec = function __rpcConnectionRouteAndExec(parsedData, sess, cb) {
-	const cmd = router.route(this.name, parsedData);
+	// execute command w/o encryption + decryption
 	if (!cmd) {
-		return this._errorResponse(parsedData, sess, cb);
+		return this._errorResponse(parsedData, null, cb);
 	}
-	this._execCmd(cmd, parsedData, sess, cb);
+	this._execCmd(cmd, parsedData, null, cb);
 };
 
 Connection.prototype._errorResponse = function __rpcConnectionErrorResponse(parsedData, sess, cb) {
@@ -274,24 +278,19 @@ Connection.prototype._execCmd = function __rpcConnectionExecCmd(cmd, parsedData,
 		var res;
 		var options;
 		const done = function __rpcConnectionOnCmdDone(error) {
-			// respond to client
-			that._write(
-				error,
-				status,
-				parsedData.seq,
-				res,
-				function __rpcConnectionOnCmdResponse(error) {
-					if (options) {
-						if (options.closeAfterReply) {
-							return that.close();
-						}
-						if (options.killAfterReply) {
-							return that.kill();
-						}
+			function __rpcConnectionOnCmdResponse(error) {
+				if (options) {
+					if (options.closeAfterReply) {
+						return that.close();
 					}
-					cb(error);
+					if (options.killAfterReply) {
+						return that.kill();
+					}
 				}
-			);
+				cb(error);
+			}
+			// respond to client
+			that._write(error, status, parsedData.seq, res, __rpcConnectionOnCmdResponse);
 		};
 		async.eachSeries(cmd.handlers, function __rpcConnectionCmdEach(handler, next) {
 			handler(that.state, function __rpcConnectionCmdCallback(_res, _status, _options) {
@@ -312,7 +311,7 @@ Connection.prototype._execCmd = function __rpcConnectionExecCmd(cmd, parsedData,
 				next();
 			});
 		}, done);
-	});	
+	});
 };
 
 Connection.prototype._write = function __rpcConnectionWrite(_error, status, seq, msg, cb) {
@@ -362,7 +361,7 @@ Connection.prototype.__write = function __rpcConnectionWriteToSock(error, data, 
 		if (typeof cb === 'function') {
 			cb(e);
 		} else {
-			logger.error('writting to the socket (response) failed:', e);
+			logger.error(this.name, 'write to the TCP socket (response) failed:', e);
 		}
 	}
 };
@@ -386,21 +385,18 @@ Connection.prototype.__push = function __rpcConnectionPushToSock(data, cb) {
 		if (typeof cb === 'function') {
 			cb(e);
 		} else {
-			logger.error('writting to the socket (push) failed:', e);
+			logger.error(this.name, 'write to the TCP socket (push) failed:', e);
 		}
 	}
 };
 
 Connection.prototype._encrypt = function __rpcConnectionEncrypt(msg, cb) {
-	if (this.crypto && this.crypto.encrypt) {
-		const that = this;
-		setImmediate(function () {
-			that.crypto.encrypt(that.state, msg, function __rpcConnectionOnEncrypt(error, data) {
-				if (error) {
-					return cb(error);
-				}
-				cb(null, data);
-			});
+	if (cryptoEngine && cryptoEngine.encrypt) {
+		cryptoEngine.encrypt(this.state, msg, function __rpcConnectionOnEncrypt(error, data) {
+			if (error) {
+				return cb(error);
+			}
+			cb(null, data);
 		});
 		return;
 	}
@@ -414,11 +410,11 @@ Connection.prototype._clear = function __rpcConnectionClear(killed) {
 		this.sock = null;
 	}
 	this.parser = null;
-	this.emit('clear', killed);
+	this.emit('clear', killed, this.id);
 };
 
 function createState(id) {
-	const state = {
+	return {
 		STATUS: transport.STATUS,
 		command: 0,
 		payload: null,
@@ -434,5 +430,4 @@ function createState(id) {
 		close: null,
 		kill: null
 	};
-	return state;
 }

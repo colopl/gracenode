@@ -45,7 +45,6 @@ module.exports.shutdown = function () {
 module.exports.setup = function __rpcSetup(cb) {
 	logger = gn.log.create('RPC');
 	config = gn.getConfig('rpc');
-	config.cleanInterval = config.cleanInterval || 10000;
 
 	connection.setup();
 
@@ -92,8 +91,6 @@ module.exports.setup = function __rpcSetup(cb) {
 	logger.verbose('port range is', config.portRange[0], 'to', pend);
 
 	const done = function __rpcSetupDone() {
-		// set up time-based cleaning for timed out connections
-		setupCleanTimedoutConnections();
 		// RPC server is now successfully bound and listening
 		boundPort = ports[portIndex];
 		// gracenode shutdown task
@@ -142,6 +139,8 @@ module.exports.setup = function __rpcSetup(cb) {
 				logger.warn(e);
 			}
 		}	
+	
+		connection.useCryptoEngine(cryptoEngine);
 
 		logger.info('RPC server started at', config.host + ':' + boundPort, connectionInfo.family);
 		logger.info('using encryption:', (cryptoEngine.encrypt ? true : false));
@@ -235,21 +234,20 @@ module.exports.setHeartbeatResponseFormat = function __rpcSetHeartbeatResFormat(
 };
 
 function handleHeartbeat(state, cb) {
+	if (formatFunction) {
+		const formatted = formatFunction(res);
+		if (formatted) {
+			return cb(formatted);
+		}
+	}
 	var res = new Buffer(JSON.stringify({
 		message: 'heartbeat',
 		serverTime: Date.now()
 	}));
-	if (formatFunction) {
-		const formatted = formatFunction(res);
-		if (formatted) {
-			res = formatted;
-		}
-	}
 	cb(res);
 }
 
 function handleConn(sock) {
-
 	if (sock.remotePort <= 0 || sock.remotePort > 65536) {
 		logger.error(
 			'invalid and/or malformed incoming TCP packet:',
@@ -260,26 +258,30 @@ function handleConn(sock) {
 		return;	
 	}
 	var conn = connection.create(sock);
-	conn.useCryptoEngine(cryptoEngine);
-	conn.on('clear', function __rpcOnConnClear(killed) {
-		if (conn) {
-			if (killed) {
-				if (typeof module.exports._onKilled === 'function') {
-					module.exports._onKilled(conn.id);
-				}
-			} else {
-				if (typeof module.exports._onClosed === 'function') {
-					module.exports._onClosed(conn.id);
-				}
-			}
-			delete connections[conn.id];
-		}
-		conn = null;
-	});
+	conn.on('clear', onConnectionClear);
 
-	logger.debug('new TCP connection (id:' + conn.id + ') from:', sock.remoteAddress + ':' + sock.remotePort);
+	logger.debug('new TCP connection (id:', conn.id, ') from:', sock.remoteAddress, ':', sock.remotePort);
 
 	connections[conn.id] = conn;
+}
+
+function onConnectionClear(killed, connId) {
+	try {
+		if (killed) {
+			if (typeof module.exports._onKilled === 'function') {
+				module.exports._onKilled(connId);
+			}
+		} else {
+			if (typeof module.exports._onClosed === 'function') {
+				module.exports._onClosed(connId);
+			}
+		}
+	} catch (error) {
+		logger.error('RPC server failed to handle clearing TCP connection object:', error);
+	}
+	if (connections[connId]) {
+		delete connections[connId];
+	}
 }
 
 function closeAllConnections(cb) {
@@ -304,47 +306,3 @@ function closeAllConnections(cb) {
 	}
 }
 
-function setupCleanTimedoutConnections() {
-	const clean = function __rpcCleanTimedoutConns() {
-		if (shutdown) {
-			for (const i in connections) {
-				connections[i].kill();
-				delete connections[i];
-			}
-			return;
-		}
-		try {
-			// we search for start to end so that we iterate 1/2 times!
-			const ids = Object.keys(connections);
-			const idlen = ids.length;
-			var left = 0;
-			var right = idlen - 1;
-			const middle = idlen / 2 | 0;
-			while (left <= middle && right >= middle) {
-				var conn = connections[ids[left]];
-				if (conn && conn.isTimedout()) {
-					conn.kill(new Error('TimedOutConnection'));
-					delete connections[ids[left]];
-					logger.debug('timed out connection cleaned:', conn.id);
-					conn = null;
-				}
-				if (left === right) {
-					break;
-				}
-				conn = connections[ids[right]];
-				if (conn && conn.isTimedout()) {
-					conn.kill(new Error('TimedOutConnection'));
-					delete connections[ids[right]];
-					logger.debug('timed out connection cleaned:', conn.id);
-					conn = null;
-				}
-				left += 1;
-				right -= 1;
-			}
-		} catch (e) {
-			logger.error('clean timed out connections:', e);
-		}
-		setTimeout(clean, config.cleanInterval);
-	};
-	setTimeout(clean, config.cleanInterval);
-}
