@@ -392,6 +392,9 @@ Connection.prototype.__push = function __rpcConnectionPushToSock(data, cb) {
 };
 
 Connection.prototype._encrypt = function __rpcConnectionEncrypt(msg, cb) {
+	if (!this.connected) {
+		return;
+	}
 	if (cryptoEngine && cryptoEngine.encrypt) {
 		cryptoEngine.encrypt(this.state, msg, function __rpcConnectionOnEncrypt(error, data) {
 			if (error) {
@@ -408,9 +411,11 @@ Connection.prototype._clear = function __rpcConnectionClear(killed) {
 	this.connected = false;
 	if (this.sock) {
 		this.sock.removeAllListeners();
-		this.sock = null;
 	}
-	this.parser = null;
+	delete this.state;
+	delete this.server;
+	delete this.sock;
+	delete this.parser;
 	this.emit('clear', killed, this.id);
 };
 
