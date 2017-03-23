@@ -24,6 +24,7 @@ const UUID = 18;
 const UUID_ARR = 19;
 const BOOL = 20;
 const BOOL_ARR = 21;
+const OBJ = 22;
 
 const COMPRESS_TAG = 0xffffffff;
 const COMP_BUF = new Buffer(4);
@@ -32,6 +33,8 @@ const OBJ_TYPE = 0xdeadbeef;
 
 // this value is configurable
 var MAX_SIZE = 8000;
+
+var logger;
 
 module.exports.UINT8 = UINT8;
 module.exports.INT8 = INT8;
@@ -54,11 +57,16 @@ module.exports.STR_ARR = STR_ARR;
 module.exports.UUID_ARR = UUID_ARR;
 module.exports.BOOL_ARR = BOOL_ARR;
 module.exports.BIN = BIN;
+module.exports.OBJ = OBJ;
 
 module.exports.setMaxSize = function (maxSize) {
 	if (maxSize) {
 		MAX_SIZE = maxSize;
 	}
+};
+
+module.exports.setup = function () {
+	logger = gn.log.create('portal.packer');
 };
 
 /***
@@ -70,7 +78,8 @@ data type can be another schema name
 **/
 module.exports.schema = function (name, _schema) {
 	if (schemaMap[name]) {
-		throw new Error('SchemaAlreadyExists:' + name);
+		logger.error('delivery data schema already exists:', name, _schema);
+		return false;
 	}
 	for (var prop in _schema) {
 		if (_schema[prop] === undefined || _schema[prop] === null) {
@@ -78,6 +87,7 @@ module.exports.schema = function (name, _schema) {
 		}
 	}
 	schemaMap[name] = _schema;
+	return true;
 };
 
 module.exports.compress = function (packedList) {
@@ -123,7 +133,10 @@ module.exports.pack = function (name, data) {
 	buf.fill(0);
 	for (const prop in schema) {
 		if (data[prop] === undefined) {
-			throw new Error('MissingProperty[' + name + ']:' + prop);
+			throw new Error(
+				'MissingProperty[' + name + ']:' + prop +
+				'\n' + JSON.stringify(data)
+			);
 		}
 		const value = data[prop];
 		offset = packAs(schema[prop], value, buf, offset);
@@ -190,6 +203,14 @@ function packAs(type, value, buf, offset) {
 			offset += 8;
 			break;
 		case STR:
+			buf.writeUInt32BE(value.length, offset);
+			offset += 4;
+			buf.write(value, offset);
+			offset += value.length;
+			break;
+		case OBJ:
+			// let it throw an exception if it has to...
+			value = JSON.stringify(value);
 			buf.writeUInt32BE(value.length, offset);
 			offset += 4;
 			buf.write(value, offset);
@@ -381,6 +402,13 @@ function unpackAs(type, buf, offset) {
 			value = strbuf.toString();
 			len = 4 + size;
 			break;
+		case OBJ:
+			var objbuf = new Buffer(buf.readUInt32BE(offset));
+			buf.copy(objbuf, 0, offset + 4);
+			// let it throw an exception if it has to
+			value = JSON.parse(objbuf);
+			len = 4 + objbuf.length;
+			break;
 		case UUID:
 			const uuid = new Buffer(16);
 			buf.copy(uuid, 0, offset);
@@ -518,49 +546,4 @@ function unpackArrayAs(type, buf, offset) {
 	}
 	return { value: list, length: len };
 }
-
-/*
-// TODO: test
-var test = {
-	u8: UINT8,
-	i8: INT8,
-	u16: UINT16,
-	i16: INT16,
-	u32: UINT32,
-	i32: INT32,
-	d: DOUBLE,
-	bool: BOOL,
-	str: STR,
-	slist: STR_ARR,
-	ulist: UUID_ARR,
-	boolist: BOOL_ARR 
-};
-module.exports.schema('test', test);
-var data = {
-	u8: 100,
-	i8: -100,
-	u16: 1000,
-	i16: -1000,
-	u32: 10000,
-	i32: -10000,
-	d: 123.456,
-	bool: true,
-	str: 'Hello',
-	boolist: [ true, false, true ],
-	slist: [ 'WORLD', 'foo' ],
-	ulist: [ gn.lib.uuid.v4().toString(), gn.lib.uuid.v4().toString(), gn.lib.uuid.v4().toString() ]
-};
-console.log(data);
-var packed = module.exports.pack('test', data);
-console.log(packed.join(' '));
-console.log('--------------');
-var unpacked = module.exports.unpack('test', packed);
-console.log(unpacked);
-
-var compressed = module.exports.compress([ packed, packed, packed ]);
-var uncompressed = module.exports.uncompress(compressed);
-console.log(module.exports.unpack('test', uncompressed[0]), module.exports.unpack('test', uncompressed[0]), module.exports.unpack('test', uncompressed[0]));
-console.log('--- done ---');
-process.exit();
-*/
 

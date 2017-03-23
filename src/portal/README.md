@@ -16,8 +16,13 @@ In order to use `portal`, you must provide the minimum configuration as shown be
 gracenode.config({
 	portal: {
 		enable: true,
-		host: '<host of Redis server>',
-		port: <port of Redis server>
+		address: <mesh network address>,
+		port: <mesh network port>,
+		announce: {
+			host: '<host of Redis server>',
+			port: <port of Redis server>,
+			interval: <interval of announce in milliseconds>
+		}
 	}
 });
 ```
@@ -68,14 +73,14 @@ Returns an array of mesh network nodes of the given `type`.
 
 Returns an array of all mesh network nodes.
 
-### .schema(name [String], strcture [Object])
+### .define(name [String], strcture [Object])
 
 Define the mesh network communication event and its data structure.
 
 Example:
 
 ```javascript
-gracenode.portal.schema('example', {
+gracenode.portal.define('example', {
 	value1: gracenode.portal.DATATYPE.UINT8,
 	value2: gracenode.portal.DATATYPE.STR,
 	value3: gracenode.portal.DATATYPE.BIN,
@@ -85,7 +90,7 @@ gracenode.portal.schema('example', {
 
 ### .DATATYPE
 
-The hash map of data types used with `gracenode.portal.schema(...)`.
+The hash map of data types used with `gracenode.portal.define(...)`.
 
 #### .DATATYPE.UINT8
 
@@ -173,7 +178,7 @@ Sends mesh network communication to another mesh network node.
 
 #### name [String]
 
-The name that has been defined by `.schema(...)`.
+The name that has been defined by `.define(...)`.
 
 #### data [Object]
 
@@ -185,7 +190,7 @@ Sends mesh netowrk communication to multiple mesh network nodes.
 
 #### name [String]
 
-The name that has been defined by `.schema(...)`.
+The name that has been defined by `.define(...)`.
 
 ### nodeList [Array]
 
