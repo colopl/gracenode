@@ -10,11 +10,16 @@ const router = require('./router');
 // UDP command hooks
 const hooks = require('./hooks');
 
+const PACKET_LIMIT_INTERVAL = 1000;
+const CLEAN_INTERVAL = 60000;
+// configurable
+const PACKET_NUM_LIMIT = 10;
 const PORT_IN_USE = 'EADDRINUSE';
 const IPv6 = 'ipv6';
 const IPv4 = 'ipv4';
 const IPV6_ADDR_PREFIX = 'fe80';
 const LAST_RANGE = 1000;
+const clientMap = {};
 
 var udpVersion = 'udp4';
 var ipv6 = false;
@@ -57,6 +62,10 @@ module.exports.setup = function __udpSetup(cb) {
 			config.port,
 			config.port + LAST_RANGE
 		];
+	}
+
+	if (!config.packets) {
+		config.packets = PACKET_NUM_LIMIT;
 	}
 
 	if (!config || !config.portRange) {
@@ -150,7 +159,9 @@ module.exports.setup = function __udpSetup(cb) {
 		connectionInfo.host = config.address;
 		connectionInfo.port = info.port;
 		connectionInfo.family = info.family;
-		
+	
+		setupCleaning();
+	
 		logger.info('UDP server started at', info.address + ':' + info.port, connectionInfo.family);
 		logger.info('using encryption:', (cryptoEngine.encrypt ? true : false));
 		logger.info('using decryption:', (cryptoEngine.decrypt ? true : false));
@@ -273,6 +284,32 @@ function handleMessage(buff, rinfo) {
 
 	if (rinfo.port <= 0 || rinfo.port > 65536) {
 		logger.error('malformed packet received from invalid port (packet ignored):', rinfo, buff);
+		return;
+	}
+
+	const key = rinfo.address + rinfo.port;
+
+	// we restrict number of packets per second for stability
+	if (!clientMap[key]) {
+		clientMap[key] = {
+			ttl: gn.lib.now() + PACKET_LIMIT_INTERVAL,
+			count: 0,
+			time: 0
+		};
+	}
+	clientMap[key].count += 1;
+	clientMap[key].time = gn.lib.now();
+	if (gn.lib.now() > clientMap[key].ttl) {
+		clientMap[key].count = 0;
+		clientMap[key].ttl = gn.lib.now() + PACKET_LIMIT_INTERVAL;
+	}
+	if (clientMap[key].count >= config.packets) {
+		logger.warn(
+			'Packet in limit exceeded and dropped:',
+			key,
+			clientMap[key].count + '/' + config.packets,
+			'time diff:', gn.lib.now() - clientMap[key].ttl
+		);
 		return;
 	}
 
@@ -495,3 +532,21 @@ function findAddrMap() {
 	}
 	return map;
 }
+
+function setupCleaning() {
+	const clean = function () {
+		try {
+			const now = gn.lib.now() - CLEAN_INTERVAL;
+			for (const key in clientMap) {
+				if (now >= clientMap[key].time) {
+					delete clientMap[key];
+				}
+			}
+		} catch (err) {
+			// do nothing
+		}
+		setTimeout(clean, CLEAN_INTERVAL);
+	};
+	setTimeout(clean, CLEAN_INTERVAL);
+}
+
