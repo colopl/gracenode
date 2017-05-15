@@ -3,7 +3,7 @@
 const EventEmitter = require('events').EventEmitter;
 const utils = require('util');
 const gn = require('../gracenode');
-const async = require('../../lib/async');
+const async = require('async');
 const transport = require('../../lib/transport');
 const rpc = require('./rpc');
 // this is not HTTP router
@@ -171,7 +171,7 @@ Connection.prototype.close = function __rpcConnectionClose(error) {
 Connection.prototype.kill = function __rpcConnectionKill(error) {
 	if (this.sock) {
 		if (error) {
-			logger.debug(this.name, 'TCP connection killed from server:', error.message);
+			logger.debug(this.name, 'TCP connection killed from server:', error);
 		} else {
 			logger.debug(this.name, 'TCP connection killed from server');
 		}
@@ -294,6 +294,9 @@ Connection.prototype._execCmd = function __rpcConnectionExecCmd(cmd, parsedData,
 				cb(error);
 			}
 			// respond to client
+			if (!res) {
+				throw new Error('MissingResponsePacket');
+			}
 			that._write(error, status, parsedData.seq, res, __rpcConnectionOnCmdResponse);
 		};
 		async.eachSeries(cmd.handlers, function __rpcConnectionCmdEach(handler, next) {

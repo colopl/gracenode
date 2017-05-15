@@ -14,7 +14,7 @@ const mod = requireInternal('./mod');
 const render = requireInternal('../render');
 const lint = requireInternal('../lint');
 const session = requireInternal('../session');
-const async = requireInternal('../../lib/async');
+const async = require('async');
 const pkg = requireInternal('../../package.json');
 const transport = requireInternal('../../lib/transport');
 
@@ -373,7 +373,7 @@ function startMod(cb) {
 
 function setupPortal(cb) {
 	const conf = config.get('portal');
-	if (conf && conf.enable) {
+	if (conf) {
 		module.exports.portal.config(conf);
 		module.exports.portal.setup(cb);
 		return;

@@ -298,7 +298,7 @@ function handleRegexDataType(type) {
 		}
 		return type;
 	} catch (e) {
-		logger.error(e);
+		//logger.error(e);
 		throw new Error('InvalidType: ' + type);
 	}
 }
