@@ -19,7 +19,7 @@ const PTS = '_pts';
 const PTRS = '_ptr';
 const PTRES = '_pte';
 // should we make it configurable?
-const RES_TIMEOUT = 10000;
+const RES_TIMEOUT = 3000;
 
 const handlers = {};
 const responses = {};
@@ -155,16 +155,17 @@ function send(protocol, eventName, nodes, data, cb) {
 	setImmediate(__send);
 	
 	function __send() {
+		var err;
 		switch (protocol) {
 			case TCP:
-				tcp.emit(
+				err = tcp.emit(
 					addr,
 					port,
 					packed
 				);	
 			break;
 			case UDP:
-				udp.emit(
+				err = udp.emit(
 					addr,
 					port,
 					packed
@@ -178,6 +179,16 @@ function send(protocol, eventName, nodes, data, cb) {
 				);
 			break;
 		}
+		if (err) {
+			logger.error(
+				'Send failed for event',
+				eventName,
+				'to',
+				addr, port,
+				'with',
+				err	
+			);
+		}
 	}
 }
 
@@ -185,7 +196,7 @@ function _createResponseTimeout(id, eventName, cb) {
 	const timeout = setTimeout(__onTimeout, RES_TIMEOUT);
 	
 	function __onTimeout() {
-		logger.error(
+		logger.debug(
 			'Response timed out:',
 			id,
 			eventName
@@ -254,6 +265,7 @@ function _onRemoteReceive(packed, response) {
 	}
 	// is packed a response?
 	const res = packer.unpack(PTRS, packed);
+	res.id = res.id.toString('hex');
 	logger.debug('Handle response:', res);
 	if (res && responses[res.id]) {
 		try {

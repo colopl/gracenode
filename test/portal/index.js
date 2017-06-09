@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('fs');
+const async = require('async');
 const request = require('../src/request');
 const assert = require('assert');
 const exec = require('child_process').exec;
@@ -108,10 +110,39 @@ describe('gracenode.portal', function () {
 });
 
 function clean(cb) {
-	exec(ONE + ' stop', function () {
-		exec(TWO + ' stop', function () {
-			cb();
+	const tasks = [
+		_checkdir,
+		_createdir,
+		_clean
+	];
+	var createdir = false;
+	function _checkdir(next) {
+		fs.stat(__dirname + '/servers/logs/', function (error) {
+			if (error) {
+				createdir = true;			
+			}
+			next();
+		});	
+	}
+	function _createdir(next) {
+		if (createdir) {
+			return fs.mkdir(__dirname + '/servers/logs/', next);
+		}
+		next();
+	}
+	function _clean(next) {
+		exec(ONE + ' stop', function () {
+			exec(TWO + ' stop', function () {
+				gn.lib.walkDir(__dirname + '/servers/logs/', function (error, list) {
+					assert.equal(error, null);
+					for (var i = 0, len = list.length; i < len; i++) {
+						fs.unlinkSync(list[i].file);
+					}
+					next();
+				});
+			});
 		});
-	});
+	}
+	async.series(tasks, cb);
 }
 

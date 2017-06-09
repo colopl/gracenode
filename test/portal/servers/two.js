@@ -1,12 +1,14 @@
 'use strict';
 
 const gn = require('../../../index');
+var logger;
 
 gn.config({
 	log: {
 		console: true,
 		color: true,
-		level: 'debug >='
+		level: 'debug >=',
+		file: __dirname + '/logs/'
 	},
 	portal: {
 		type: 'server-two',
@@ -33,6 +35,8 @@ gn.portal.onAnnounce(function () {
 const remember = {};
 
 gn.start(function () {
+	gn.log.setPrefix('TWO');
+	logger = gn.log.create();
 	const TYPE = gn.portal.TYPE;
 	gn.portal.define('one2two', {
 		bool: TYPE.BOOL,
@@ -64,6 +68,7 @@ gn.start(function () {
 		}
 	});
 	gn.portal.on('one2two', function (payload, cb) {
+		logger.debug('event one2two handled', payload);
 		remember.one2two = payload;
 		cb(payload);
 	});

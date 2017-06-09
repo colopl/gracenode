@@ -1,12 +1,14 @@
 'use strict';
 
 const gn = require('../../../index');
+var logger;
 
 gn.config({
 	log: {
 		console: true,
 		color: true,
-		level: 'debug >='
+		level: 'debug >=',
+		file: __dirname + '/logs/'
 	},
 	cluster: {
 		max: 2
@@ -36,7 +38,8 @@ gn.portal.onAnnounce(function () {
 const remember = {};
 
 gn.start(function () {
-
+	gn.log.setPrefix('ONE');
+	logger = gn.log.create();
 	const TYPE = gn.portal.TYPE;
 	gn.portal.define('one2two', {
 		bool: TYPE.BOOL,
@@ -88,11 +91,12 @@ gn.http.get('/one2two', function (req, res) {
 	if (!nodes.length) {
 		return res.error(new Error('NoNodeFound'));
 	}
-
+	logger.debug('emit event one2two', nodes, data);
 	gn.portal.emit('one2two', nodes, data, function (error, resp) {
 		if (error) {
 			return res.error(error);
 		}
+		logger.debug('successfully finished emit event one2two', nodes, data);
 		res.json(resp);
 	});
 });
