@@ -282,7 +282,7 @@ module.exports.multipush = function (msg, list, cb) {
 		}
 	};
 	const next = function __multipushUdpNext() {
-		setImmediate(sender);
+		process.nextTick(sender);
 	};
 	next();
 };
@@ -394,8 +394,7 @@ function executeCmd(sessionId, seq, sessionData, msg, rinfo) {
 }
 
 function executeCommands(cmd, state) {
-	const handlers = cmd.handlers;
-	async.eachSeries(handlers, function __udpExecuteCommandEach(handler, next) {
+	async.eachSeries(cmd.handlers, function __udpExecuteCommandEach(handler, next) {
 		handler(state, next);
 	}, nothing);
 }
@@ -487,15 +486,11 @@ function serverPush(msg, address, port, cb) {
 		return;
 	}
 
-	try {
-		if (typeof cb !== 'function') {
-			cb = function () {};
-		}
-		msg = transport.createPush(0, msg);
-		server.send(msg, 0, msg.length, port, address, cb);
-	} catch (e) {
-		cb(e);
+	if (typeof cb !== 'function') {
+		cb = function () {};
 	}
+	msg = transport.createPush(0, msg);
+	server.send(msg, 0, msg.length, port, address, cb);
 }
 
 function isIPv6() {
