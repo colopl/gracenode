@@ -14,7 +14,6 @@ const mod = requireInternal('./mod');
 const render = requireInternal('../render');
 const lint = requireInternal('../lint');
 const session = requireInternal('../session');
-const async = require('async');
 const pkg = requireInternal('../../package.json');
 const transport = requireInternal('../../lib/transport');
 
@@ -38,6 +37,9 @@ exports.mod = {};
 exports.lib = requireInternal('/../../lib');
 
 exports.log = log;
+
+// async library is NOT V8 crankshaft friendly
+exports.async = require('../../lib/async');
 
 exports.Buffer = require('../buffer');
 
@@ -153,7 +155,7 @@ exports.start = function __gnStart(cb) {
 
 			ready = true;
 		};
-		async.series(tasks, done);
+		exports.async.series(tasks, done);
 	});
 };
 

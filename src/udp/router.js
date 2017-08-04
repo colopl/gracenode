@@ -1,6 +1,5 @@
 'use strict';
 
-const async = require('async');
 const gn = require('../gracenode');
 const hooks = require('./hooks');
 const commands = {};
@@ -72,8 +71,9 @@ module.exports.route = function __udpRouterRoute(packet) {
 
 function getHookExec(cmdId, cmdName, hookList) {
 	return function __udpRouterGetHookExecExec(state, cb) {
-		async.eachSeries(hookList, function __udpRouterGetHookExecEach(hook, next) {
+		var each = function __udpRouterGetHookExecEach(hook, next) {
 			hook(state, next);
-		}, cb);
+		};
+		gn.async.eachSeries(hookList, each, cb);
 	};
 }

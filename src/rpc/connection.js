@@ -3,7 +3,6 @@
 const EventEmitter = require('events').EventEmitter;
 const utils = require('util');
 const gn = require('../gracenode');
-const async = require('async');
 const transport = require('../../lib/transport');
 const rpc = require('./rpc');
 // this is not HTTP router
@@ -195,7 +194,7 @@ Connection.prototype._data = function __rpcConnectionDataHandler(packet) {
 			return that.kill(error);
 		}
 	};
-	async.eachSeries(parsed, function __rpcConnectionDataHandlerEach(parsedData, next) {
+	gn.async.eachSeries(parsed, function __rpcConnectionDataHandlerEach(parsedData, next) {
 		if (!parsedData) {
 			return next();
 		}
@@ -299,7 +298,7 @@ Connection.prototype._execCmd = function __rpcConnectionExecCmd(cmd, parsedData,
 			}
 			that._write(error, status, parsedData.seq, res, __rpcConnectionOnCmdResponse);
 		};
-		async.eachSeries(cmd.handlers, function __rpcConnectionCmdEach(handler, next) {
+		gn.async.eachSeries(cmd.handlers, function __rpcConnectionCmdEach(handler, next) {
 			var timeout;
 			var skipped = false;
 			if (callbackTimeout) {
