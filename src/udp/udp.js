@@ -2,7 +2,6 @@
 
 const neti = require('os').networkInterfaces();
 const transport = require('../../lib/transport');
-const async = require('async');
 const gn = require('../gracenode');
 const dgram = require('dgram');
 // UDP router
@@ -314,7 +313,7 @@ function handleMessage(buff, rinfo) {
 	const dec = cryptoEngine.decrypt;
 	const addr = rinfo.address;
 	const port = rinfo.port;
-	async.eachSeries(parsed.payloads, function __udpHandleMessageEach(payloadData, next) {
+	gn.async.eachSeries(parsed.payloads, function __udpHandleMessageEach(payloadData, next) {
 		if (dec) {
 			var toDecrypt = buff;
 			if (!transport.isJson()) {
@@ -394,7 +393,7 @@ function executeCmd(sessionId, seq, sessionData, msg, rinfo) {
 }
 
 function executeCommands(cmd, state) {
-	async.eachSeries(cmd.handlers, function __udpExecuteCommandEach(handler, next) {
+	gn.async.eachSeries(cmd.handlers, function __udpExecuteCommandEach(handler, next) {
 		handler(state, next);
 	}, nothing);
 }

@@ -6,7 +6,6 @@
 * managing the number of open sockets asynchronously turns out to be tough
 */
 
-const async = require('async');
 const gn = require('../gracenode');
 const packer = require('./packer');
 const meshNodes = require('./meshnodes');
@@ -64,7 +63,7 @@ function config(_conf) {
 function setup(cb) {
 	//tcp.on(_onRemoteReceive);
 	udp.on(_onRemoteReceive);
-	async.series([
+	gn.async.series([
 		//tcp.setup,
 		udp.setup,
 		__getInfo
