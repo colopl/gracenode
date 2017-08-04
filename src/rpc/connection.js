@@ -31,7 +31,7 @@ module.exports.create = function __rpcConnectionCreate(sock) {
 
 function Connection(sock) {
 	EventEmitter.call(this);
-	const you = sock.remoteAddress + ':' + sock.remotePort;
+	var you = sock.remoteAddress + ':' + sock.remotePort;
 	var that = this;
 	this.sock = sock;
 	this.id = gn.lib.uuid.v4().toString();
@@ -100,8 +100,8 @@ Connection.prototype._respond = function __rpcConnectionRespond(payload, status,
 			status = this.state.STATUS.OK;
 		}
 	}
-	const that = this;
-	const _rpcConnectionRespond = function () {
+	var that = this;
+	var _rpcConnectionRespond = function () {
 		if (options) {
 			if (options.closeAfterReply) {
 				return that.close();
@@ -135,7 +135,7 @@ Connection.prototype._checkHeartbeat = function __rpcConnectionHeartbeatChecker(
 	} catch (error) {
 		logger.error(this.name, 'TCP heartbeat error:', error);		
 	}
-	const that = this;
+	var that = this;
 	setTimeout(function () {
 		that._checkHeartbeat();
 	}, heartbeatConf.checkFrequency);
@@ -184,12 +184,12 @@ Connection.prototype.kill = function __rpcConnectionKill(error) {
 };
 
 Connection.prototype._data = function __rpcConnectionDataHandler(packet) {
-	const parsed = this.parser.parse(packet);
+	var parsed = this.parser.parse(packet);
 	if (parsed instanceof Error) {
 		return this.kill(parsed);
 	}
-	const that = this;
-	const done = function __rpcConnectionDataHandlerDone(error) {
+	var that = this;
+	var done = function __rpcConnectionDataHandlerDone(error) {
 		if (error) {
 			return that.kill(error);
 		}
@@ -204,18 +204,18 @@ Connection.prototype._data = function __rpcConnectionDataHandler(packet) {
 
 Connection.prototype._decrypt = function __rpcConnectionDecrypt(parsedData, cb) {
 	// handle command routing
-	const cmd = router.route(this.name, parsedData);
+	var cmd = router.route(this.name, parsedData);
 	// execute command w/ encryption and decryption
 	if (cryptoEngine && cryptoEngine.decrypt) {
 		if (!this.sock) {
 			return cb(new Error('SocketUnexceptedlyGone'));
 		}
-		const that = this;
-		const _onDec = function __rpcConnectionOnDecrypt(error, sid, seq, sdata, decrypted) {
+		var that = this;
+		var _onDec = function __rpcConnectionOnDecrypt(error, sid, seq, sdata, decrypted) {
 			if (error) {
 				return cb(error);
 			}
-			const sess = {
+			var sess = {
 				sessionId: sid,
 				seq: seq,
 				data: sdata
@@ -258,7 +258,7 @@ Connection.prototype._execCmd = function __rpcConnectionExecCmd(cmd, parsedData,
 	if (!this.sock) {
 		return cb(new Error('SocketUnexceptedlyGone'));
 	}
-	const that = this;
+	var that = this;
 	this.state.command = parsedData.command;
 	this.state.payload = parsedData.payload;
 	this.state.seq = parsedData.seq;
@@ -280,7 +280,7 @@ Connection.prototype._execCmd = function __rpcConnectionExecCmd(cmd, parsedData,
 		}
 		var res;
 		var options;
-		const done = function __rpcConnectionOnCmdDone(error) {
+		var done = function __rpcConnectionOnCmdDone(error) {
 			function __rpcConnectionOnCmdResponse(error) {
 				if (options) {
 					if (options.closeAfterReply) {
@@ -346,7 +346,7 @@ Connection.prototype._execCmd = function __rpcConnectionExecCmd(cmd, parsedData,
 };
 
 Connection.prototype._write = function __rpcConnectionWrite(_error, status, seq, msg, cb) {
-	const that = this;
+	var that = this;
 	if (typeof msg === 'object' && !(msg instanceof Buffer)) {
 		msg = JSON.stringify(msg);
 	}
@@ -360,7 +360,7 @@ Connection.prototype._write = function __rpcConnectionWrite(_error, status, seq,
 };
 
 Connection.prototype._push = function __rpcConnectionPush(msg, cb) {
-	const that = this;
+	var that = this;
 	if (typeof msg === 'object' && !(msg instanceof Buffer)) {
 		msg = JSON.stringify(msg);
 	}
@@ -408,11 +408,16 @@ Connection.prototype.__push = function __rpcConnectionPushToSock(data, cb) {
 		}
 		return cb();
 	}
+	/*
 	try {
 		this.sock.write(data, 'binary');
 	} catch (e) {
 		logger.error(this.name, 'write to the TCP socket (push) failed:', e);
 	}
+	*/
+	this.sock.write(data, 'binary', function (error) {
+		logger.error('write to the TCP socket (push) failed:', error);
+	});
 };
 
 Connection.prototype._encrypt = function __rpcConnectionEncrypt(msg, cb) {

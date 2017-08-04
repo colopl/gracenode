@@ -1,9 +1,7 @@
 'use strict';
 
 const gn = require('../gracenode');
-
 const HOOK_REG = /\/{(.*?)}/g;
-
 const hooks = {};
 
 var logger;
@@ -28,9 +26,9 @@ exports.hook = function __httpHook(path, func) {
 		}
 		return;
 	}
-	const headingSlash = path[0] === '/' ? '' : '/';
+	var headingSlash = path[0] === '/' ? '' : '/';
 	var hookPath = headingSlash + path.replace(HOOK_REG, '');
-	const len = hookPath.length - 1;
+	var len = hookPath.length - 1;
 	hookPath = (hookPath[len] === '/') ? hookPath.substring(0, len) : hookPath;
 	// add the hook function to exact match
 	if (!hooks.hasOwnProperty(hookPath)) {
@@ -47,22 +45,22 @@ exports.hook = function __httpHook(path, func) {
 };
 
 exports.updateHooks = function __updateHooks(fastRoutes, routes, allroutes) {
-	for (const method in routes) {
+	for (var method in routes) {
 		// fast routes
-		const map = fastRoutes[method];
-		for (const path in map) {
+		var map = fastRoutes[method];
+		for (var path in map) {
 			fastRoutes[method][path].hooks = exports.findHooks(map[path].path);
 		}
 		// shortcut routes
-		for (const key in routes[method]) {
+		for (var key in routes[method]) {
 			for (var j = 0, jen = routes[method][key].length; j < jen; j++) {
 				routes[method][key][j].hooks = exports.findHooks(routes[method][key][j].path);
 			}
 		}
 		// all routes
-		const list = allroutes[method];
+		var list = allroutes[method];
 		for (var i = 0, len = list.length; i < len; i++) {
-			const route = list[i];
+			var route = list[i];
 			allroutes[method][i].hooks = exports.findHooks(route.path);
 		}
 	}
@@ -70,13 +68,13 @@ exports.updateHooks = function __updateHooks(fastRoutes, routes, allroutes) {
 
 exports.findHooks = function __findHooks(key) {
 	var matchedHooks = [];
-	for (const path in hooks) {
+	for (var path in hooks) {
 		if (path === '/') {
 			matchedHooks = matchedHooks.concat(hooks[path]);
 			continue;
 		}
-		const index = key.indexOf(path);
-		const lastChar = key[path.length];
+		var index = key.indexOf(path);
+		var lastChar = key[path.length];
 		if (index === 0 && (lastChar === '/' || lastChar === undefined)) {
 			matchedHooks = matchedHooks.concat(hooks[path]);
 		}

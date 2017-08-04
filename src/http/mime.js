@@ -59,7 +59,7 @@ const map = {
 module.exports.get = function __httpMimeGet(fileType) {
 	// mime type exception handler
 	fileType = checkTypeException(fileType);
-	const prefix = map[fileType] || null;
+	var prefix = map[fileType] || null;
 	if (!prefix) {
 		return '';
 	}
@@ -67,7 +67,7 @@ module.exports.get = function __httpMimeGet(fileType) {
 };
 
 module.exports.getFromPath = function __httpMimeGetFromPath(path) {
-	const ext = path.substring(path.lastIndexOf('.') + 1);
+	var ext = path.substring(path.lastIndexOf('.') + 1);
 	return module.exports.get(ext);
 };
 

@@ -40,7 +40,7 @@ function Response(req, res, errorMap) {
 	this._errorHandled = false;
 	this._errorMap = errorMap;
 	// default response headers
-	for (const i in DEFAULT_HEADERS) {
+	for (var i in DEFAULT_HEADERS) {
 		this.headers[i] = DEFAULT_HEADERS[i];
 	}
 }
@@ -93,7 +93,7 @@ Response.prototype.data = function __httpResponseData(data, status) {
 Response.prototype.download = function __httpResponseDownload(dataOrPath, status) {
 	if (typeof dataOrPath === 'string') {
 		// path
-		const that = this;
+		var that = this;
 		fs.readFile(dataOrPath, function __httpResponseDownloadOnReadFile(error, data) {
 			if (error) {
 				// forced 404 error
@@ -122,7 +122,7 @@ Response.prototype.file = function __httpResponseFile(path, status) {
 		);
 		return;
 	}
-	const that = this;
+	var that = this;
 	fs.stat(path, function __httpResponseFileOnStat(error, stats) {
 		if (error) {
 			// forced 404 error
@@ -165,7 +165,7 @@ Response.prototype.stream = function __httpResponseStream(path) {
 		return;
 	}
 	this._sent = true;
-	const that = this;
+	var that = this;
 	fs.stat(path, function __httpResponseStreamOnStat(error, stat) {
 		if (error) {
 			// forced 404 error
@@ -177,17 +177,17 @@ Response.prototype.stream = function __httpResponseStream(path) {
 			util.fmt('url', that._req.method + ' ' + that._req.url),
 			util.fmt('id', that._req.id)
 		);
-		const type = mime.getFromPath(path);
-		const total = stat.size;
+		var type = mime.getFromPath(path);
+		var total = stat.size;
 		if (that._req.headers.range) {
-			const range = that._req.headers.range;
-			const parts = range.replace(/bytes=/, '').split('-');
-			const partialStart = parts[0];
-			const partialEnd = parts[1];
-			const start = parseInt(partialStart, 10);
-			const end = partialEnd ? parseInt(partialEnd, 10) : total - 1;
-			const chunkSize = (end - start) + 1;
-			const rstream = fs.createReadStream(path, { start: start, end: end });
+			var range = that._req.headers.range;
+			var parts = range.replace(/bytes=/, '').split('-');
+			var partialStart = parts[0];
+			var partialEnd = parts[1];
+			var start = parseInt(partialStart, 10);
+			var end = partialEnd ? parseInt(partialEnd, 10) : total - 1;
+			var chunkSize = (end - start) + 1;
+			var rstream = fs.createReadStream(path, { start: start, end: end });
 			that._res.writeHead(206, {
 				'Content-Range': 'bytes ' + start + '-' + end + '/' + total,
 				'Accept-Ranges': 'bytes',
@@ -223,7 +223,7 @@ Response.prototype._send = function __httpResponseSend(data, status) {
 	}
 	// check for error handler in errorMap
 	if (!this._errorHandled && this._errorMap[status]) {
-		const errorHandler = this._errorMap[status];
+		var errorHandler = this._errorMap[status];
 		this._errorHandled = true;
 		logger.error(
 			'Error response handler found:',
@@ -236,7 +236,7 @@ Response.prototype._send = function __httpResponseSend(data, status) {
 		return;
 	}
 	this._sent = true;
-	const that = this;
+	var that = this;
 	logger.verbose(
 		'Response data:',
 		util.fmt('url', this._req.method + ' ' + this._req.url),
@@ -259,7 +259,7 @@ Response.prototype._send = function __httpResponseSend(data, status) {
 };
 
 Response.prototype._isAcceptedEncoding = function __httpResponseIsAcceptedEncoding(enc) {
-	const hd = this._req.headers;
+	var hd = this._req.headers;
 	var list = hd['accept-encoding'] || hd['Accept-Encoding'];
 	if (!list) {
 		return false;
@@ -290,11 +290,11 @@ function send(req, res, headers, data, type, status) {
 	// setup response headers
 	res.writeHead(status || DEFAULT_STATUS, headers);
 	// request execution time
-	const time = Date.now() - req.startTime;
-	const furl = util.fmt('url', req.method + ' ' + req.url);
-	const fid = util.fmt('id', req.id);
-	const fstatus = util.fmt('status', status);
-	const ftime = util.fmt('time', time + 'ms');
+	var time = Date.now() - req.startTime;
+	var furl = util.fmt('url', req.method + ' ' + req.url);
+	var fid = util.fmt('id', req.id);
+	var fstatus = util.fmt('status', status);
+	var ftime = util.fmt('time', time + 'ms');
 	// respond
 	if (req.method === 'HEAD') {
 		// HEAD does not send content

@@ -1,7 +1,7 @@
 'use strict';
 
-const async = require('async');
 const gn = require('../gracenode');
+const async = gn.async;
 const hooks = require('./hooks');
 const commands = {};
 var logger;
@@ -11,8 +11,8 @@ module.exports.setup = function __rpcRouterSetup() {
 };
 
 module.exports.getCommandList = function () {
-	const list = [];
-	for (const id in commands) {
+	var list = [];
+	for (var id in commands) {
 		list.push({ id: id, name: commands[id].name });
 	}
 	return list;
