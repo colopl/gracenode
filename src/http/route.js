@@ -31,19 +31,19 @@ exports.find = function __httpRouteFind(method, fullpath) {
 	// head is treated as get
 	method = method === 'HEAD' ? 'GET' : method;
 	// extract path
-	const queryIndex = fullpath.indexOf('?');
+	var queryIndex = fullpath.indexOf('?');
 	var queryList = [];
 	var path = fullpath;
 	if (queryIndex !== -1) {
 		queryList = fullpath.substring(queryIndex + 1).split('&');
 		path = fullpath.substring(0, queryIndex);
 	}
-	const res = mapping.getRoute(method, path);
+	var res = mapping.getRoute(method, path);
 	if (!res) {
 		return null;
 	}
 	// parameters
-	const paramList = getParamList(res.matched);
+	var paramList = getParamList(res.matched);
 	// create found object
 	return {
 		path: res.route.path,
@@ -56,7 +56,7 @@ exports.find = function __httpRouteFind(method, fullpath) {
 };
 
 function getParamList(matched) {
-	const list = [];
+	var list = [];
 	var j = 0;
 	for (var i = 1, len = matched.length; i < len; i++) {
 		if (matched[i] !== undefined) {
@@ -68,9 +68,9 @@ function getParamList(matched) {
 }
 
 function parseQuery(list) {
-	const query = {};
+	var query = {};
 	for (var i = 0, len = list.length; i < len; i++) {
-		const sep = list[i].split('=');
+		var sep = list[i].split('=');
 		query[sep[0]] = typecast(sep[1]);
 	}
 	return query;
@@ -87,7 +87,7 @@ function parseParams(list, names) {
 }
 
 function typecast(value) {
-	const val = decodeURI(value);
+	var val = decodeURI(value);
 	if (isNaN(val)) {
 		switch (val) {
 			case 'true':
@@ -121,7 +121,7 @@ function typecast(value) {
 }
 
 function cast(type, value) {
-	const val = decodeURI(value);
+	var val = decodeURI(value);
 	switch (type) {
 		case 'number':
 			if (isNaN(val)) {
@@ -129,7 +129,7 @@ function cast(type, value) {
 			}
 			return parseFloat(val, 10);
 		case 'bool':
-			const bool = val.toLowerCase();
+			var bool = val.toLowerCase();
 			if (bool !== 'true' && bool !== 'false') {
 				throw new Error('InvalidBool: ' + val);
 			}
@@ -139,7 +139,7 @@ function cast(type, value) {
 		default:
 			if (type instanceof RegExp) {
 				// data type is regex
-				const pass = type.test(val);
+				var pass = type.test(val);
 				if (!pass) {
 					throw Error('InvalidParameterTypeByRegExp: ' + val);
 				}

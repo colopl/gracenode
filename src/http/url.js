@@ -6,7 +6,7 @@ const PAT = '([^\\/]+?)';
 const LPAT = '(?:\/(?=$))?$';
 
 exports.convert = function __httpUrlCovert(path, sensitive) {
-	const staticPath = path.indexOf(STAT);
+	var staticPath = path.indexOf(STAT);
 	if (!path.match(REP) && staticPath === -1) {
 		// fast routing: no URL parameters
 		path = sensitive ? path.toLowerCase() : path;
@@ -31,7 +31,7 @@ exports.convert = function __httpUrlCovert(path, sensitive) {
 		match = path.replace(REP, '[^\/]*[^\/]');
 		ext = path.replace(REP, PAT);
 	}
-	const lindex = ext.lastIndexOf(PAT);
+	var lindex = ext.lastIndexOf(PAT);
 	if (lindex !== -1) {
 		if (ext[ext.length - 1] === '/') {
 			ext = ext.substring(0, ext.length - 1);

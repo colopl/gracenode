@@ -86,7 +86,7 @@ module.exports.setup = function __udpSetup(cb) {
 
 	logger.info('Max packet size:', transport.getMaxPacketSize());
 	
-	const addrMap = findAddrMap();
+	var addrMap = findAddrMap();
 	logger.info('Available Addresses:', addrMap);	
 
 	if (config.version && config.version.toLowerCase() === IPv6) {
@@ -122,11 +122,11 @@ module.exports.setup = function __udpSetup(cb) {
 	router.setup();
 
 	var running = false;
-	const ports = [];
+	var ports = [];
 	var portIndex = 0;
 	var boundPort;
 
-	const done = function __udpSetupDone() {
+	var done = function __udpSetupDone() {
 		// UDP server is now successfully bound and listening
 		boundPort = ports[portIndex];
 		// gracenode shutdown task
@@ -155,7 +155,7 @@ module.exports.setup = function __udpSetup(cb) {
 		running = true;
 		server.on('message', handleMessage);
 		
-		const info = server.address();
+		var info = server.address();
 
 		connectionInfo.address = info.address;
 		connectionInfo.host = config.address;
@@ -170,7 +170,7 @@ module.exports.setup = function __udpSetup(cb) {
 
 		cb();
 	};
-	const listen = function __udpSetupListen() {
+	var listen = function __udpSetupListen() {
 		
 		if (server) {
 			server.close();
@@ -189,7 +189,7 @@ module.exports.setup = function __udpSetup(cb) {
 			exclusive: true
 		});
 	};
-	const handleError = function __udpHandleError(error) {
+	var handleError = function __udpHandleError(error) {
 		if (error.code === PORT_IN_USE) {
 			// try next port in range
 			const badPort = ports[portIndex];
@@ -205,7 +205,7 @@ module.exports.setup = function __udpSetup(cb) {
 		gn.stop(error);
 	};
 
-	const pend = config.portRange[1] || config.portRange[0];
+	var pend = config.portRange[1] || config.portRange[0];
 
 	for (var p = config.portRange[0]; p <= pend; p++) {
 		ports.push(p);
@@ -269,7 +269,7 @@ module.exports.push = function (msg, address, port, cb) {
 // msg must be a buffer
 // list = [ { address, port } { ... } ];
 module.exports.multipush = function (msg, list, cb) {
-	const sender = function __multipushUdpSender () {
+	var sender = function __multipushUdpSender () {
 		const dest = list.shift();
 		if (dest) {
 			module.exports.push(msg, dest.address, dest.port, next);
@@ -280,7 +280,7 @@ module.exports.multipush = function (msg, list, cb) {
 			cb();
 		}
 	};
-	const next = function __multipushUdpNext() {
+	var next = function __multipushUdpNext() {
 		process.nextTick(sender);
 	};
 	next();
@@ -293,7 +293,7 @@ function handleMessage(buff, rinfo) {
 		return;
 	}
 
-	const key = rinfo.address + rinfo.port;
+	var key = rinfo.address + rinfo.port;
 
 	if (!clientMap[key]) {
 		clientMap[key] = {
@@ -302,17 +302,17 @@ function handleMessage(buff, rinfo) {
 	}
 	clientMap[key].time = lastCleaned;
 
-	const parsed = transport.parse(buff);
+	var parsed = transport.parse(buff);
 	if (parsed instanceof Error) {
 		logger.error(parsed);
 		dispatchOnError(parsed);
 		return;
 	}
 
-	const pudp = gn.session.PROTO.UDP;
-	const dec = cryptoEngine.decrypt;
-	const addr = rinfo.address;
-	const port = rinfo.port;
+	var pudp = gn.session.PROTO.UDP;
+	var dec = cryptoEngine.decrypt;
+	var addr = rinfo.address;
+	var port = rinfo.port;
 	gn.async.eachSeries(parsed.payloads, function __udpHandleMessageEach(payloadData, next) {
 		if (dec) {
 			var toDecrypt = buff;
@@ -349,7 +349,7 @@ function dispatchOnError(error, rinfo) {
 }
 
 function executeCmd(sessionId, seq, sessionData, msg, rinfo) {
-	const cmd = router.route(msg);	
+	var cmd = router.route(msg);	
 	
 	if (!cmd) {
 		logger.error('command not found:', msg);
@@ -357,14 +357,9 @@ function executeCmd(sessionId, seq, sessionData, msg, rinfo) {
 		return;
 	}
 
-	var payload;
-	try {
-		payload = JSON.parse(msg.payload);
-	} catch (e) {
-		payload = msg.payload;
-	}
+	var payload = _getPayload(msg.payload);
 
-	const state = {
+	var state = {
 		STATUS: transport.STATUS,
 		sessionId: sessionId,
 		seq: seq,
@@ -392,6 +387,14 @@ function executeCmd(sessionId, seq, sessionData, msg, rinfo) {
 	});
 }
 
+function _getPayload(payload) {
+	try {
+		return JSON.parse(payload);
+	} catch (e) {
+		return payload;
+	}
+}
+
 function executeCommands(cmd, state) {
 	gn.async.eachSeries(cmd.handlers, function __udpExecuteCommandEach(handler, next) {
 		handler(state, next);
@@ -412,7 +415,7 @@ function send(state, msg, seq, status, cb) {
 		msg = transport.createPush(seq || 0, msg);
 	}
 
-	const sent = function __udpSendDone(error) {
+	var sent = function __udpSendDone(error) {
 		if (error) {
 			logger.error(
 				'sending UDP packet failed:',
@@ -420,7 +423,7 @@ function send(state, msg, seq, status, cb) {
 				'to:', state.clientAddress + ':' +
 				state.clientPort
 			);
-			const rinfo = {
+			var rinfo = {
 				address: state.clientAddress,
 				port: state.clientPort
 			};
@@ -443,40 +446,31 @@ function send(state, msg, seq, status, cb) {
 					state.seq,
 					error
 				);
-				const rinfo2 = {
+				var rinfo2 = {
 					address: state.clientAddress,
 					port: state.clientPort
 				};
 				return dispatchOnError(new Error('EncryptionFailed'), rinfo2);
 			}
-			try {
-				server.send(
-					encrypted,
-					0,
-					encrypted.length,
-					state.clientPort,
-					state.clientAddress,
-					sent
-				);
-			} catch (e) {
-				logger.error('send failed:', e);
-			}
+			server.send(
+				encrypted,
+				0,
+				encrypted.length,
+				state.clientPort,
+				state.clientAddress,
+				sent
+			);
 		});
 		return;
 	}
-
-	try {
-		server.send(
-			msg,
-			0,
-			msg.length,
-			state.clientPort,
-			state.clientAddress,
-			sent
-		);
-	} catch (e) {
-		logger.error('send failed:', e);
-	}
+	server.send(
+		msg,
+		0,
+		msg.length,
+		state.clientPort,
+		state.clientAddress,
+		sent
+	);
 }
 
 function serverPush(msg, address, port, cb) {
@@ -497,15 +491,15 @@ function isIPv6() {
 }
 
 function findAddrMap() {
-	const map = {
+	var map = {
 		ipv4: [],
 		ipv6: []
 	};
 	for (var interfaceName in neti) {
-		const list = neti[interfaceName];
+		var list = neti[interfaceName];
 		for (var i = 0, len = list.length; i < len; i++) {
-			const fam = list[i].family.toLowerCase();
-			const addr = list[i].address;
+			var fam = list[i].family.toLowerCase();
+			var addr = list[i].address;
 			if (fam === IPv6 && addr.indexOf(IPV6_ADDR_PREFIX) === 0) {
 				map.ipv6.push(addr + '%' + interfaceName);
 			} else if (fam === IPv4) {
@@ -517,11 +511,11 @@ function findAddrMap() {
 }
 
 function setupCleaning() {
-	const clean = function () {
+	var clean = function () {
 		try {
 			lastCleaned = gn.lib.now();
-			const now = lastCleaned - CLEAN_INTERVAL;
-			for (const key in clientMap) {
+			var now = lastCleaned - CLEAN_INTERVAL;
+			for (var key in clientMap) {
 				if (now >= clientMap[key].time) {
 					delete clientMap[key];
 				}

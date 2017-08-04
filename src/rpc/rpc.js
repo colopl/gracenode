@@ -86,10 +86,10 @@ module.exports.setup = function __rpcSetup(cb) {
 	// set up RPC command controller router
 	router.setup();
 	
-	const ports = [];
+	var ports = [];
 	var portIndex = 0;
 	var boundPort;
-	const pend = config.portRange[1] || config.portRange[0];
+	var pend = config.portRange[1] || config.portRange[0];
 
 	for (var p = config.portRange[0]; p <= pend; p++) {
 		ports.push(p);
@@ -97,7 +97,7 @@ module.exports.setup = function __rpcSetup(cb) {
 
 	logger.verbose('port range is', config.portRange[0], 'to', pend);
 
-	const done = function __rpcSetupDone() {
+	var done = function __rpcSetupDone() {
 		// RPC server is now successfully bound and listening
 		boundPort = ports[portIndex];
 		// gracenode shutdown task
@@ -113,7 +113,7 @@ module.exports.setup = function __rpcSetup(cb) {
 				TIMEOUT_FOR_CLOSE, 'msc'
 			);
 			// set up time out if connections do not close within the time, it hard closes
-			const timeout = setTimeout(next, TIMEOUT_FOR_CLOSE);
+			var timeout = setTimeout(next, TIMEOUT_FOR_CLOSE);
 			// stop accepting new connections and shutdown when all connections are closed
 			// server will emit 'close' event when closeAllConnections finishes
 			server.close();
@@ -124,7 +124,7 @@ module.exports.setup = function __rpcSetup(cb) {
 			});
 		});
 
-		const info = server.address();
+		var info = server.address();
 		connectionInfo.address = info.address;
 		connectionInfo.host = config.host;
 		connectionInfo.port = boundPort;
@@ -132,12 +132,12 @@ module.exports.setup = function __rpcSetup(cb) {
 
 		// if heartbeat is required, set it up here now
 		if (gn.getConfig('rpc.heartbeat')) {
-			/*
+			/***
 			rpc.heartbeat: {
 				timeout: [milliseconds] // time to timeout and disconnect w/o heartbeat from client,
 				checkFrequency: [milliseconds] // heartbeat check internval
 			}
-			*/
+			**/
 			try {
 				router.define(HEARTBEAT_ID, HEARTBEAT_NAME, function __rpcOnHeartbeat(state, cb) {
 					handleHeartbeat(state, cb);
@@ -155,8 +155,8 @@ module.exports.setup = function __rpcSetup(cb) {
 
 		cb();
 	};	
-	const listen = function __rpcListen() {
-		const port = ports[portIndex];
+	var listen = function __rpcListen() {
+		var port = ports[portIndex];
 		logger.verbose('binding to:', config.host + ':' + port);
 		server.listen({
 			port: port,
@@ -250,7 +250,7 @@ module.exports.setHeartbeatResponseFormat = function __rpcSetHeartbeatResFormat(
 
 function handleHeartbeat(state, cb) {
 	if (formatFunction) {
-		const formatted = formatFunction(res);
+		var formatted = formatFunction(res);
 		if (formatted) {
 			return cb(formatted);
 		}
@@ -301,23 +301,12 @@ function onConnectionClear(killed, connId) {
 }
 
 function closeAllConnections(cb) {
-	for (const connId in conns) {
+	for (var connId in conns) {
 		if (conns[connId]) {
 			logger.info('closing a TCP connection: (ID:' + connId + ')');
 			conns[connId].close();
 		}
 	}
 	server.on('close', cb);
-	/*
-	const poll = function () {
-		const openConns = Object.keys(conns).length;
-		logger.info('Remaining open TCP connections:', openConns);
-		if (openConns === 0) {
-			cb();
-		}
-		setTimeout(poll, 100);
-	};
-	setTimeout(poll, 100);
-	*/
 }
 

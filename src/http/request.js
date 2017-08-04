@@ -45,14 +45,14 @@ exports.getReqBody = function __httpRequestGetRequestBody(read, req, cb) {
 };
 
 function readMultipartBody(req, cb) {
-	const form = new multiparty.Form();
+	var form = new multiparty.Form();
 	form.parse(req, function __httpRequestReadMultipartBodyOnFormParse(error, fields, files) {
 		if (error) {
 			return cb(error);
 		}
-		const body = fields;
+		var body = fields;
 		body.files = [];
-		for (const f in files) {
+		for (var f in files) {
 			body.files.push(files[f][0]);
 		}
 		logger.verbose(
@@ -76,7 +76,7 @@ function readRequestBody(url, headers, body) {
 		}
 	} else {
 		reqBody = queryString.parse(body);
-		for (const key in reqBody) {
+		for (var key in reqBody) {
 			reqBody[key] = typecast(reqBody[key]);
 		}
 	}

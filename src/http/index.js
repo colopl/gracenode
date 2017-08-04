@@ -85,7 +85,7 @@ exports.static = function __httpStatic(path, dirList, opt) {
 			item += '/';
 		}
 		// exact same path as defined
-		const filepath = path + item + STATIC_PARAM;
+		var filepath = path + item + STATIC_PARAM;
 		exports.get(filepath, staticRouter.handle(dirList[i]), opt);
 		// treat the given path as document root
 		if (len === 1) {
@@ -119,7 +119,7 @@ exports.error = function __httpError(status, func) {
 exports.setup = function __httpSetup(cb) {
 	server = http.createServer(requestHandler);
 	server.on('listening', function __onHttpSetupListening() {
-		const info = server.address();
+		var info = server.address();
 		logger.info(
 			'HTTP server router started:',
 			config.host + ':' + config.port,
@@ -172,10 +172,10 @@ exports.setup = function __httpSetup(cb) {
 function requestHandler(req, res) {
 	
 	if (trailingSlash) {
-		const uriComponents = req.url.split('?');
-		const uri = uriComponents[0];
-		const queries = uriComponents[1] ? '?' + uriComponents[1] : '';
-		const trailing = uri.substring(uri.length - 1);
+		var uriComponents = req.url.split('?');
+		var uri = uriComponents[0];
+		var queries = uriComponents[1] ? '?' + uriComponents[1] : '';
+		var trailing = uri.substring(uri.length - 1);
 		if (trailing !== '/') {
 			logger.verbose(
 				'Enforcing trailing slash on',
@@ -193,8 +193,8 @@ function requestHandler(req, res) {
 	// set start time
 	req.startTime = Date.now();
 
-	const method = req.method;
-	const resp = new Response(req, res, errorMap);
+	var method = req.method;
+	var resp = new Response(req, res, errorMap);
 	var parsed;
 	try {
 		parsed = route.find(method, req.url);
@@ -203,8 +203,8 @@ function requestHandler(req, res) {
 		resp.error(error, 400);
 		return;
 	}
-	const furl = util.fmt('url', req.method + ' ' + req.url);
-	const fid = util.fmt('id', req.id);
+	var furl = util.fmt('url', req.method + ' ' + req.url);
+	var fid = util.fmt('id', req.id);
 	logger.sys('Request Resolved:', furl, fid);
 	logger.verbose('Resolved Request:', furl, fid, parsed, req.headers);
 
@@ -226,7 +226,7 @@ function requestHandler(req, res) {
 		);		
 	});
 
-	const hookDone = function __onRequestHandlerHookDone(error, statusCode) {
+	var hookDone = function __onRequestHandlerHookDone(error, statusCode) {
 		if (error) {
 			// error response 400
 			if (!statusCode) {

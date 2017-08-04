@@ -11,7 +11,7 @@ module.exports.setup = function __udpRouterSetup() {
 
 module.exports.getCommandList = function () {
 	var list = [];
-	for (const id in commands) {
+	for (var id in commands) {
 		list.push({ id: id, name: commands[id].name });
 	}
 	return list;

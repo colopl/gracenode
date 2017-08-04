@@ -70,7 +70,7 @@ exports.add = function __mappingAdd(method, path, handler, opt) {
 		sensitive: false
 	};
 	// convert path to regex
-	const converted = url.convert(path, opt.sensitive);
+	var converted = url.convert(path, opt.sensitive);
 	// fast route w/o named parameters
 	if (converted.fast) {
 		return addToFastRoutes(method, path, handler, opt);
@@ -81,7 +81,7 @@ exports.add = function __mappingAdd(method, path, handler, opt) {
 
 exports.getRoute = function __mappingGetRoute(method, path) {
 	// try fast route first
-	const fast = searchFastRoute(method, path);
+	var fast = searchFastRoute(method, path);
 	if (fast) {
 		return {
 			matched: [],
@@ -96,7 +96,7 @@ exports.getRoute = function __mappingGetRoute(method, path) {
 		};
 	}
 	// try routes
-	const found = searchRoute(method, path);
+	var found = searchRoute(method, path);
 	if (!found || !found.matched) {
 		return null;
 	}
@@ -104,7 +104,7 @@ exports.getRoute = function __mappingGetRoute(method, path) {
 };
 
 function addToFastRoutes(method, path, handler, opt) {
-	const key = !opt.sensitive ? path.toLowerCase() : path;
+	var key = !opt.sensitive ? path.toLowerCase() : path;
 	if (fastroutes[method][key]) {
 		fastroutes[method][key].handlers.push(handler);
 		return;
@@ -121,11 +121,11 @@ function addToFastRoutes(method, path, handler, opt) {
 
 function addToRoutes(method, path, handler, opt, conv) {
 	// add to routes
-	const key = getRouteKey(path);
+	var key = getRouteKey(path);
 	if (!routes[method][key]) {
 		routes[method][key] = [];
 	}
-	const lkey = key.toLowerCase();
+	var lkey = key.toLowerCase();
 	if (!routes[method][lkey]) {
 		routes[method][lkey] = [];
 	}
@@ -133,7 +133,7 @@ function addToRoutes(method, path, handler, opt, conv) {
 	if (routes[method][key].length) {
 		// since javascript passes around reference to route route object,
 		// do alone will update for lowercase and all routes
-		const success = updateDupRegistry(
+		var success = updateDupRegistry(
 			routes[method][key],
 			method,
 			path,
@@ -144,8 +144,8 @@ function addToRoutes(method, path, handler, opt, conv) {
 			return;
 		}
 	}
-	const regex = opt.sensitive ? new RegExp(conv.pmatch) : new RegExp(conv.pmatch, 'i');
-	const route = {
+	var regex = opt.sensitive ? new RegExp(conv.pmatch) : new RegExp(conv.pmatch, 'i');
+	var route = {
 		path: path.replace(PARAM_REGEX, ''),
 		pattern: conv.pmatch,
 		regex: regex,
@@ -170,9 +170,9 @@ function addToRoutes(method, path, handler, opt, conv) {
 }
 
 function updateDupRegistry(list, method, path, key, handler) {
-	const regPath = path.replace(PARAM_REGEX, '');
+	var regPath = path.replace(PARAM_REGEX, '');
 	for (var i = 0, len = list.length; i < len; i++) {
-		const item = list[i];
+		var item = list[i];
 		if (item.path === regPath) {
 			list[i].handlers.push(handler);
 			return true;
@@ -188,14 +188,14 @@ function searchFastRoute(method, path) {
 	if (path[path.length - 1] === '/') {
 		path = path.substring(0, path.length - 1);
 	}
-	const map = fastroutes[method] || {};
+	var map = fastroutes[method] || {};
 	// try case sensitive
 	if (map[path]) {
 		return map[path];
 	}
 	// try case insensitive
-	const lpath = path.toLowerCase();
-	const match = map[lpath];
+	var lpath = path.toLowerCase();
+	var match = map[lpath];
 	if (match && match.sensitive) {
 		return null;
 	}
@@ -207,12 +207,12 @@ function searchRoute(method, path) {
 		logger.error(method, 'not supported');
 		return null;
 	}
-	const key = getRouteKey(path);
-	const list = routes[method][key];
+	var key = getRouteKey(path);
+	var list = routes[method][key];
 	if (!list) {
 		return searchAllRoutes(method, path);
 	}
-	const found = searchRouteShortcut(path, list);
+	var found = searchRouteShortcut(path, list);
 	if (!found) {
 		logger.verbose('Route not found for:', path, 'in', list);
 		return null;
@@ -222,8 +222,8 @@ function searchRoute(method, path) {
 
 function searchRouteShortcut(path, list) {
 	for (var i = 0, len = list.length; i < len; i++) {
-		const item = list[i];
-		const found = item.regex.test(path);
+		var item = list[i];
+		var found = item.regex.test(path);
 		if (found) {
 			return {
 				matched: item.extract.exec(path),
@@ -237,8 +237,8 @@ function searchRouteShortcut(path, list) {
 function searchAllRoutes(method, path) {
 	var list = allroutes[method];
 	for (var i = 0, len = list.length; i < len; i++) {
-		const item = list[i];
-		const found = item.regex.test(path);
+		var item = list[i];
+		var found = item.regex.test(path);
 		if (found) {
 			return {
 				matched: item.extract.exec(path),
@@ -250,16 +250,16 @@ function searchAllRoutes(method, path) {
 }
 
 function getRouteKey(path) {
-	const key = path.substring(1);
+	var key = path.substring(1);
 	return key.substring(0, key.indexOf('/'));
 }
 
 function getParamNames(path) {
-	const list = path.match(PARAM_NAME_REGEX);
-	const res = [];
+	var list = path.match(PARAM_NAME_REGEX);
+	var res = [];
 	if (list) {
 		for (var i = 0, len = list.length; i < len; i++) {
-			const sep = list[i].replace(BRACE_REGEX, '').split(':');
+			var sep = list[i].replace(BRACE_REGEX, '').split(':');
 			var type;
 			var name;
 			if (sep.length === 2) {
@@ -286,8 +286,8 @@ function handleRegexDataType(type) {
 		// parameter data type is a regex
 		// this string MUST BE a complete javascript regular expression
 		// exmaple: /^[a-zA-Z]*$/g
-		const reg = type;
-		const arg = reg.substring(reg.lastIndexOf('/') + 1) || null;
+		var reg = type;
+		var arg = reg.substring(reg.lastIndexOf('/') + 1) || null;
 		var regStr;
 		if (arg) {
 			regStr = reg.replace(arg, '').replace(/\//g, '');
@@ -298,7 +298,6 @@ function handleRegexDataType(type) {
 		}
 		return type;
 	} catch (e) {
-		//logger.error(e);
 		throw new Error('InvalidType: ' + type);
 	}
 }
