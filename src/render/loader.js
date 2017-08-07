@@ -3,7 +3,7 @@
 var fs = require('fs');
 var render = require('./render');
 var gn = require('../gracenode');
-
+var async = require('../../lib/async');
 var logger;
 var dirpath;
 var loaded = {};
@@ -27,7 +27,7 @@ exports.load = function __renderLoaderLoad(path, cb) {
 exports.loadClient = function __renderLoaderLoadClient(cb) {
 	var root = getClientPath();
 	return function () {
-		gn.async.eachSeries(CLIENT_PATHS, function __renderLoaderLoadClientEach(path, next) {
+		async.eachSeries(CLIENT_PATHS, function __renderLoaderLoadClientEach(path, next) {
 			fs.readFile(root + path, 'utf8', function __renderLoaderLoaClientReadFile(error, data) {
 				if (error) {
 					return next(error);
@@ -69,7 +69,7 @@ function load(path, cb) {
 					return cb(error);
 				}
 				path = path + ((path[path.length - 1] !== '/') ? '/' : '');
-				gn.async.each(list, function __renderLoaderLoadReaddirEach(file, next) {
+				async.each(list, function __renderLoaderLoadReaddirEach(file, next) {
 					load(path + file, next);
 				}, cb);
 			});

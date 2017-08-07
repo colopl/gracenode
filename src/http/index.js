@@ -1,6 +1,7 @@
 'use strict';
 
 const uuid = require('../../lib/uuid/uuid');
+const async = require('../../lib/async');
 const http = require('http');
 const Cookies = require('cookies');
 const route = require('./route');
@@ -287,12 +288,12 @@ function requestHandler(req, res) {
 		}
 
 		// execute hooks -> request handler
-		gn.async.eachSeries(parsed.hooks, handleHook, hookDone);
+		async.eachSeries(parsed.hooks, handleHook, hookDone);
 	});
 }
 
 function executeHandlers(handlers, req, resp) {
-	gn.async.eachSeries(handlers, function __onExecuteHandlersHandle(handler, next) {
+	async.eachSeries(handlers, function __onExecuteHandlersHandle(handler, next) {
 		logger.verbose('Handling request:', req.url, (handler.name || 'Anonymous'));
 		handler(req, resp, next);
 	}, function __onExecuteHandlersDone(error) {

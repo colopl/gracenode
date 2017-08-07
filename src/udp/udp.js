@@ -2,6 +2,7 @@
 
 const neti = require('os').networkInterfaces();
 const transport = require('../../lib/transport');
+const async = require('../../lib/async');
 const gn = require('../gracenode');
 const dgram = require('dgram');
 // UDP router
@@ -19,6 +20,7 @@ const IPV6_ADDR_PREFIX = 'fe80';
 const LAST_RANGE = 1000;
 const clientMap = {};
 
+var supportJSON = false;
 var udpVersion = 'udp4';
 var ipv6 = false;
 var logger;
@@ -49,6 +51,8 @@ module.exports.info = function __udpInfo() {
 module.exports.setup = function __udpSetup(cb) {
 	logger = gn.log.create('UDP');
 	config = gn.getConfig('udp');
+
+	supportJSON = config.supportJSON || false;
 
 	// we update this at every clean up and use this as TTL for each udp client
 	lastCleaned = gn.lib.now();
@@ -176,7 +180,7 @@ module.exports.setup = function __udpSetup(cb) {
 			server.close();
 		}
 
-		const port = ports[portIndex];
+		var port = ports[portIndex];
 		logger.verbose('binding to:', config.address + ':' + port);
 		// create UDP server
 		server = dgram.createSocket(udpVersion);
@@ -192,7 +196,7 @@ module.exports.setup = function __udpSetup(cb) {
 	var handleError = function __udpHandleError(error) {
 		if (error.code === PORT_IN_USE) {
 			// try next port in range
-			const badPort = ports[portIndex];
+			var badPort = ports[portIndex];
 			logger.verbose('port is in use:', badPort);
 			portIndex += 1;
 			if (!ports[portIndex]) {
@@ -269,8 +273,8 @@ module.exports.push = function (msg, address, port, cb) {
 // msg must be a buffer
 // list = [ { address, port } { ... } ];
 module.exports.multipush = function (msg, list, cb) {
-	var sender = function __multipushUdpSender () {
-		const dest = list.shift();
+	var sender = function __multipushUdpSender() {
+		var dest = list.shift();
 		if (dest) {
 			module.exports.push(msg, dest.address, dest.port, next);
 			return;
@@ -303,48 +307,55 @@ function handleMessage(buff, rinfo) {
 	clientMap[key].time = lastCleaned;
 
 	var parsed = transport.parse(buff);
+	
 	if (parsed instanceof Error) {
 		logger.error(parsed);
 		dispatchOnError(parsed);
 		return;
 	}
+	
+	var params = {
+		buff: buff,
+		rinfo: rinfo
+	};
+	async.loopSeries(parsed.payloads, params, _onEachMessage, nothing);
+}
 
-	var pudp = gn.session.PROTO.UDP;
-	var dec = cryptoEngine.decrypt;
-	var addr = rinfo.address;
-	var port = rinfo.port;
-	gn.async.eachSeries(parsed.payloads, function __udpHandleMessageEach(payloadData, next) {
-		if (dec) {
-			var toDecrypt = buff;
-			if (!transport.isJson()) {
-				toDecrypt = payloadData.payload;
-			}
-			dec(toDecrypt, pudp, addr, port, function (error, sid, seq, sdata, dec) {
-				if (error) {
-					// this is also the same as session failure
-					logger.error('decryption of message failed:', error);
-					dispatchOnError(new Error('DecryptionFailed'), rinfo);
-					return;
-				}
-				payloadData.payload = dec;
-				// route and execute command
-				executeCmd(sid, seq, sdata, payloadData, rinfo);
-				next();
-			});
-			return;
+function _onEachMessage(payloadData, params, next) {
+	var decrypt = cryptoEngine.decrypt;
+	if (decrypt) {
+		var pudp = gn.session.PROTO.UDP;
+		var addr = params.rinfo.address;
+		var port = params.rinfo.port;
+		var toDecrypt = params.buff;
+		if (!transport.isJson()) {
+			toDecrypt = payloadData.payload;
 		}
-		executeCmd(null, payloadData.seq, null, payloadData, rinfo);
-		next();
-	}, nothing);
+		decrypt(toDecrypt, pudp, addr, port, function (error, sid, seq, sdata, dec) {
+			if (error) {
+				// this is also the same as session failure
+				logger.error('decryption of message failed:', error);
+				dispatchOnError(new Error('DecryptionFailed'));
+				return;
+			}
+			payloadData.payload = dec;
+			// route and execute command
+			executeCmd(sid, seq, sdata, payloadData, params.rinfo);
+			next();
+		});
+		return;
+	}
+	executeCmd(null, payloadData.seq, null, payloadData, params.rinfo);
+	next();
 }
 
 function nothing() {
 
 }
 
-function dispatchOnError(error, rinfo) {
+function dispatchOnError(error) {
 	if (typeof onErrorHandler === 'function') {
-		onErrorHandler(error, rinfo);
+		onErrorHandler(error);
 	}
 }
 
@@ -353,13 +364,15 @@ function executeCmd(sessionId, seq, sessionData, msg, rinfo) {
 	
 	if (!cmd) {
 		logger.error('command not found:', msg);
-		dispatchOnError(new Error('CommandNotFound'), rinfo);
+		dispatchOnError(new Error('CommandNotFound'));
 		return;
 	}
 
-	var payload = _getPayload(msg.payload);
+	var payload = config.supportJSON ?
+		_getPayloadFromJSON(msg.payload) : msg.payload;
 
 	var state = {
+		cmd: cmd,
 		STATUS: transport.STATUS,
 		sessionId: sessionId,
 		seq: seq,
@@ -372,22 +385,16 @@ function executeCmd(sessionId, seq, sessionData, msg, rinfo) {
 		}
 	};
 
-	cmd.hooks(state, function __udpHandleMessageOnHooks(error) {
+	cmd.hooks(msg, state, function _onHooksFinished(error) {
 		if (error) {
-			logger.error(
-				'command hook error:', error,
-				'command', cmd.id, cmd.name,
-				'session ID', sessionId,
-				'seq', seq
-			);
-			dispatchOnError(error, rinfo);
+			dispatchOnError(error);
 			return;
 		}
 		executeCommands(cmd, state);
 	});
 }
 
-function _getPayload(payload) {
+function _getPayloadFromJSON(payload) {
 	try {
 		return JSON.parse(payload);
 	} catch (e) {
@@ -396,9 +403,13 @@ function _getPayload(payload) {
 }
 
 function executeCommands(cmd, state) {
-	gn.async.eachSeries(cmd.handlers, function __udpExecuteCommandEach(handler, next) {
-		handler(state, next);
-	}, nothing);
+	var params = { state: state };
+	async.loopSeries(cmd.handlers, params, _onEachCommand, nothing);
+
+}
+
+function _onEachCommand(handler, params, next) {
+	handler(params.state, next);
 }
 
 function send(state, msg, seq, status, cb) {
@@ -423,14 +434,10 @@ function send(state, msg, seq, status, cb) {
 				'to:', state.clientAddress + ':' +
 				state.clientPort
 			);
-			var rinfo = {
-				address: state.clientAddress,
-				port: state.clientPort
-			};
 			if (typeof cb === 'function') {
 				cb(error);
 			}
-			return dispatchOnError(error, rinfo);
+			return dispatchOnError(error);
 		}
 		if (typeof cb === 'function') {
 			cb();
@@ -446,11 +453,7 @@ function send(state, msg, seq, status, cb) {
 					state.seq,
 					error
 				);
-				var rinfo2 = {
-					address: state.clientAddress,
-					port: state.clientPort
-				};
-				return dispatchOnError(new Error('EncryptionFailed'), rinfo2);
+				return dispatchOnError(new Error('EncryptionFailed'));
 			}
 			server.send(
 				encrypted,

@@ -1,6 +1,7 @@
 'use strict';
 
 const redis = require('redis');
+const async = require('../../lib/async');
 const gn = require('../gracenode');
 const delivery = require('./delivery');
 
@@ -181,7 +182,7 @@ function startAnnounceAndRead() {
 		read
 	];
 	const exec = function () {
-		gn.async.series(tasks, done);
+		async.series(tasks, done);
 	};
 
 	setTimeout(exec, conf.interval);
