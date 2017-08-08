@@ -195,13 +195,16 @@ Connection.prototype._data = function __rpcConnectionDataHandler(packet) {
 			return that.kill(error);
 		}
 	};
-	async.eachSeries(parsed, function __rpcConnectionDataHandlerEach(parsedData, next) {
-		if (!parsedData) {
-			return next();
-		}
-		that._decrypt(parsedData, next);
-	}, done);
+	var params = { that: that };
+	async.loopSeries(parsed, params, _onEachData, done);
 };
+
+function _onEachData(parsedData, params, next) {
+	if (!parsedData) {
+		return next();
+	}
+	params.that._decrypt(parsedData, next);
+}
 
 Connection.prototype._decrypt = function __rpcConnectionDecrypt(parsedData, cb) {
 	// handle command routing
@@ -271,7 +274,7 @@ Connection.prototype._execCmd = function __rpcConnectionExecCmd(cmd, parsedData,
 		this.state.session = sess.data;
 	}
 	// execute hooks before the handler(s)
-	cmd.hooks(this.state, function __rpcConnectionOnHooks(error, status) {
+	cmd.hooks(parsedData, this.state, function __rpcConnectionOnHooks(error, status) {
 		if (error) {
 			var msg = gn.Buffer.alloc(error.message);
 			if (!status) {
