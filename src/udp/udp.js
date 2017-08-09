@@ -318,7 +318,7 @@ function handleMessage(buff, rinfo) {
 		buff: buff,
 		rinfo: rinfo
 	};
-	async.loopSeries(parsed.payloads, params, _onEachMessage, nothing);
+	async.loopSeries(parsed.payloads, params, _onEachMessage);
 }
 
 function _onEachMessage(payloadData, params, next) {
@@ -331,26 +331,31 @@ function _onEachMessage(payloadData, params, next) {
 		if (!transport.isJson()) {
 			toDecrypt = payloadData.payload;
 		}
-		decrypt(toDecrypt, pudp, addr, port, function (error, sid, seq, sdata, dec) {
-			if (error) {
-				// this is also the same as session failure
-				logger.error('decryption of message failed:', error);
-				dispatchOnError(new Error('DecryptionFailed'));
-				return;
-			}
-			payloadData.payload = dec;
-			// route and execute command
-			executeCmd(sid, seq, sdata, payloadData, params.rinfo);
-			next();
-		});
+		decrypt(toDecrypt, pudp, addr, port, _onEachDecrypt.bind({
+			payloadData: payloadData,
+			params: params,
+			next: next
+		}));
 		return;
 	}
 	executeCmd(null, payloadData.seq, null, payloadData, params.rinfo);
 	next();
 }
 
-function nothing() {
-
+function _onEachDecrypt(error, sid, seq, sdata, dec) {
+	var payloadData = this.payloadData;
+	var params = this.params;
+	var next = this.next;
+	if (error) {
+		// this is also the same as session failure
+		logger.error('decryption of message failed:', error);
+		dispatchOnError(new Error('DecryptionFailed'));
+		return;
+	}
+	payloadData.payload = dec;
+	// route and execute command
+	executeCmd(sid, seq, sdata, payloadData, params.rinfo);
+	next();
 }
 
 function dispatchOnError(error) {
@@ -385,13 +390,18 @@ function executeCmd(sessionId, seq, sessionData, msg, rinfo) {
 		}
 	};
 
-	cmd.hooks(msg, state, function _onHooksFinished(error) {
-		if (error) {
-			dispatchOnError(error);
-			return;
-		}
-		executeCommands(cmd, state);
-	});
+	cmd.hooks(msg, state, _onHooksFinished.bind({
+		cmd: cmd,
+		state: state
+	}));
+}
+
+function _onHooksFinished(error) {
+	if (error) {
+		dispatchOnError(error);
+		return;
+	}
+	executeCommands(this.cmd, this.state);
 }
 
 function _getPayloadFromJSON(payload) {
@@ -404,7 +414,7 @@ function _getPayloadFromJSON(payload) {
 
 function executeCommands(cmd, state) {
 	var params = { state: state };
-	async.loopSeries(cmd.handlers, params, _onEachCommand, nothing);
+	async.loopSeries(cmd.handlers, params, _onEachCommand);
 
 }
 
@@ -476,6 +486,7 @@ function send(state, msg, seq, status, cb) {
 	);
 }
 
+// it cannot encrypt b/c it does not have state
 function serverPush(msg, address, port, cb) {
 
 	if (shutdown) {
@@ -483,7 +494,7 @@ function serverPush(msg, address, port, cb) {
 	}
 
 	if (typeof cb !== 'function') {
-		cb = function () {};
+		cb = _nothing;
 	}
 	msg = transport.createPush(0, msg);
 	server.send(msg, 0, msg.length, port, address, cb);
@@ -523,11 +534,15 @@ function setupCleaning() {
 					delete clientMap[key];
 				}
 			}
-		} catch (err) {
-			// do nothing
+		} catch (error) {
+			logger.error('cleaning error:', error);
 		}
 		setTimeout(clean, CLEAN_INTERVAL);
 	};
 	setTimeout(clean, CLEAN_INTERVAL);
+}
+
+function _nothing() {
+
 }
 
