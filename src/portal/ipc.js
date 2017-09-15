@@ -1,7 +1,10 @@
 'use strict';
 
+const fs = require('fs');
 const net = require('net');
 const gn = require('../gracenode');
+// use need to udp here to get ip and port to create the unix socket name only...
+const udp = require('./udp');
 
 const E_PORT_IN_USE = 'EADDRINUSE';
 
@@ -12,38 +15,34 @@ DELIMITER[2] = 0xbb;
 DELIMITER[3] = 0xaa;
 
 const conf = {
-	address: '127.0.0.1',
-	port: 8100
+	path: '/tmp/'
 };
 
 var logger;
-var info = {
-	address: '',
-	port: 0
-};
-var shutdown = false;
+var info;
+var me;
 var server;
 var clients = {};
 var notifier;
 var rcvbuffer = null;
+var shutdown = false;
 
 module.exports = {
 	config: config,
 	setup: setup,
 	emit: null,
-	on: on,
-	info: getInfo
+	on: on
 };
 
 function config(_conf) {
 	logger = gn.log.create(
-		'portal.broker.delivery.tcp'
+		'portal.broker.delivery.ipc'
 	);
-	if (_conf.address) {
-		conf.address = _conf.address;
+	if (_conf.path) {
+		conf.path = _conf.path;
 	}
-	if (_conf.port) {
-		conf.port = _conf.port;
+	if (conf.path[conf.path.length - 1] !== '/') {
+		conf.path += '/';
 	}
 	module.exports.emit = emit;
 }
@@ -56,31 +55,23 @@ function setup(cb) {
 		});
 		return;
 	}
-	gn.onExit(function shutdownPortalTCP(next) {
+	info = udp.info();
+	me = createSockFileName(info.address, info.port);
+	gn.onExit(function shutdownPortalIPC(next) {
 		shutdown = true;
 		for (var key in clients) {
 			if (clients[key]) {
 				clients[key].end();
 			}
 		}
-		server.close();
-		next();
+		setTimeout(function () {
+			fs.unlink(me, next);
+		}, 100);
 	});
 	server = new net.createServer(_onConnection);
-	server.on('error', _onError.bind({ cb: cb }));
+	server.on('error', _onError.bind({ me: me, cb: cb }));
 	server.on('listening', _onListening.bind({ cb: cb }));
-	server.listen({
-		port: conf.port,
-		address: conf.address,
-		exclusive: true
-	});
-}
-
-function getInfo() {
-	return {
-		address: info.address,
-		port: info.port
-	};
+	server.listen(me);
 }
 
 function emit(addr, port, packed, isResponse) {
@@ -91,7 +82,7 @@ function emit(addr, port, packed, isResponse) {
 	// add sender informantion bytes
 	var senderBytes = senderToBytes(info.address, info.port);
 	var buf = Buffer.concat([ packed, senderBytes, DELIMITER ]);
-	var key = addr + '/' + port;
+	var key = createSockFileName(addr, port);
 	if (!clients[key]) {
 		clients[key] = _createConnectionAndEmit(
 			addr,
@@ -111,11 +102,11 @@ function on(_notifier) {
 }
 
 function _createConnectionAndEmit(addr, port, packed) {
-	var key = addr + '/' + port;
 	var conn = new net.Socket();
+	var key = createSockFileName(addr, port);
 	conn.on('error', _onClientError.bind({ key: key }));
 	conn.on('close', _onClientClose.bind({ key: key }));
-	conn.connect(port, addr, _onClientConnect.bind({
+	conn.connect(key, _onClientConnect.bind({
 		conn: conn,
 		key: key,
 		packed: packed
@@ -127,9 +118,6 @@ function _onClientConnect() {
 	var key = this.key;
 	var packed = this.packed;
 	clients[key] = conn;
-	if (shutdown) {
-		return;
-	}
 	conn.write(packed, _onClientWrite.bind({ key: key }));
 }
 
@@ -146,14 +134,14 @@ function _onClientClose() {
 
 function _onClientWrite(error) {
 	if (error) {
-		logger.sys('Error writing to', key, error);
 		var key = this.key;
+		logger.sys('Error writing to', key, error);
 		delete clients[key];
 	}
 }
 
 function _onConnection(conn) {
-	logger.sys('Mesh network TCP new connection accepted');
+	logger.sys('Mesh network IPC new connection accepted');
 	conn.on('error', _onConnError);
 	conn.on('end', _onEnd.bind({ conn: conn }));
 	conn.on('data', _onData);
@@ -169,7 +157,7 @@ function _onConnError(error) {
 function _onEnd() {
 	var conn = this.conn;
 	conn.removeAllListeners();
-	logger.sys('Mesh network TCP client closed');
+	logger.sys('Mesh network IPC client closed');
 }
 
 function _onData(buf) {
@@ -220,21 +208,21 @@ function _onMessageResponse(payload) {
 }
 
 function _onError(error) {
+	var me = this.me;
 	var cb = this.cb;
 	if (error.code === E_PORT_IN_USE) {
-		conf.port += 1;
-		setup(cb);
+		fs.unlink(me, function () {
+			setup(cb);
+		});
 		return;
 	}
-	logger.error('Mesh network TCP error:', error);
+	logger.error('Mesh network IPC error:', error);
 	cb(error);
 }
 
 function _onListening() {
 	var cb = this.cb;
-	info.address = conf.address;
-	info.port = conf.port;
-	logger.info('Mesh network TCP ready:', info);
+	logger.info('Mesh network IPC ready:', me);
 	cb();
 }
 
@@ -242,10 +230,9 @@ function senderToBytes(addr, port) {
 	var list = addr.split('.');
 	var abuf = gn.Buffer.alloc(4);
 	var pbuf = gn.Buffer.alloc(2);
-	abuf.writeUInt8(list[0], 0);
-	abuf.writeUInt8(list[1], 1);
-	abuf.writeUInt8(list[2], 2);
-	abuf.writeUInt8(list[3], 3);
+	for (var i = 0, len = list.length; i < len; i++) {
+		abuf.writeUInt8(parseInt(list[i]), i);
+	}
 	pbuf.writeUInt16BE(port);
 	return Buffer.concat([ abuf, pbuf ]);
 }
@@ -259,5 +246,12 @@ function bytesToSender(buf) {
 		address: list.join('.'),
 		port: buf.readUInt16BE(4)
 	};
+}
+
+function createSockFileName(addr, port) {
+	var name = conf.path + 'gracenode.ipc.' +
+		addr + '.' + port +
+		'.sock';
+	return name;
 }
 
