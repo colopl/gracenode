@@ -67,6 +67,7 @@ exports.updateHooks = function __updateHooks(fastRoutes, routes, allroutes) {
 };
 
 exports.findHooks = function __findHooks(key) {
+	key = key.replace(HOOK_REG, '');
 	var matchedHooks = [];
 	for (var path in hooks) {
 		if (path === '/') {
