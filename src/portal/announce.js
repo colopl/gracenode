@@ -9,6 +9,7 @@ const PREFIX = '__portal/';
 const DEFAULT_TYPE = 'normal';
 const SCAN_COUNT = 1000;
 const PATTERN = PREFIX + '*';
+const ALL_ADDR = '0.0.0.0/';
 const MATCH = 'MATCH';
 const COUNT = 'COUNT';
 
@@ -20,6 +21,7 @@ const conf = {
 };
 const valueMap = {};
 const onAnnounceCallbacks = [];
+const onNewNodeCallbacks = [];
 
 var cache = {};
 var map = {};
@@ -95,6 +97,10 @@ module.exports.onAnnounce = function (func) {
 	onAnnounceCallbacks.push(func);
 };
 
+module.exports.onNewNode = function (func) {
+	onNewNodeCallbacks.push(func);
+};
+
 module.exports.setValue = function (key, value) {
 	if (value !== null && typeof value === 'object') {
 		logger.error(
@@ -122,6 +128,25 @@ module.exports.setValue = function (key, value) {
 	valueMap[key] = value;
 };
 
+module.exports.getNode = function (type, addr, port) {
+	var list = cache[type];
+	if (!list || !list.length) {
+		return null;
+	}
+	var index;
+	var key = addr + port;
+	var allKey = ALL_ADDR + port;
+	if (map[key] !== undefined) {
+		index = map[key]; 
+	} else if (map[allKey] !== undefined) {
+		index = map[allKey];
+	}
+	if (index === undefined) {
+		return null;
+	}
+	return cache[type][index] || null;
+};
+
 module.exports.getNodes = function (type) {
 	if (cache[type]) {
 		return cache[type];
@@ -140,7 +165,7 @@ module.exports.getAllNodes = function () {
 
 module.exports.nodeExists = function (addr, port) {
 	var key = addr + port;
-	return map[key] || false;	
+	return (map[key] !== undefined || map[ALL_ADDR + port] === undefined) ? true : false;	
 };
 
 function startAnnounceAndRead() {
@@ -305,6 +330,7 @@ function scan(cb) {
 function createCache(list, results) {
 	var tmp = {};
 	var tmpmap = {};
+	var newNodes = [];
 	for (var i = 0, len = results.length; i < len; i++) {
 		var item = {
 			key: parseKey(list[i]),
@@ -322,10 +348,27 @@ function createCache(list, results) {
 			value: item.value
 		});
 		// address + port is always unique, of cource!
-		tmpmap[item.key.address + item.key.port] = true;
+		var mapkey = item.key.address + item.key.port;
+		tmpmap[mapkey] = tmp[item.key.type].length - 1;
+		// have we seen this node before?
+		if (map[mapkey] === undefined) {
+			newNodes.push({
+				address: item.key.address,
+				port: item.key.port,
+				value: item.value,
+				type: item.key.value
+			});
+		}
 	}
 	cache = tmp;
 	map = tmpmap;
+	for (var k = 0, ken = newNodes.length; k < ken; k++) {
+		var newNode = newNodes[k];
+		for (var j = 0, jen = onNewNodeCallbacks.length; j < jen; j++) {
+			var cb = onNewNodeCallbacks[j];
+			cb(newNode);
+		}
+	}
 	logger.verbose('cache created:', info, cache);
 }
 

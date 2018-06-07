@@ -19,6 +19,8 @@ const pkg = requireInternal('../../package.json');
 const transport = requireInternal('../../lib/transport');
 
 const onExceptions = [];
+// callback functions on cluster start
+const onCluster = [];
 
 // this will be overridden by logger in setupLog()
 var ignoreLint = false;
@@ -65,6 +67,10 @@ exports.cluster = cluster;
 
 exports.getRootPath = function __gnGetRootPath() {
 	return rootPath;
+};
+
+exports.onCluster = function __onCluster(callback) {
+	onCluster.push(callback);
 };
 
 exports.require = function __gnRequire(path) {
@@ -306,7 +312,7 @@ function startCluster(cb) {
 				(cluster.id() ? ' ' + cluster.id() : '') 
 			);
 		}
-		cb();
+		async.series(onCluster, cb);
 	});
 }
 

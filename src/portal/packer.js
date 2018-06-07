@@ -9,18 +9,27 @@ module.exports.pack = function (data) {
 	if (!data) {
 		return gn.Buffer.alloc(0);
 	}
+	if (Buffer.isBuffer(data)) {
+		return data;
+	}
 	// JSON is much faster than Buffer...
 	return gn.Buffer.alloc(JSON.stringify(convert(data)), 'utf8');
 };
 
 module.exports.unpack = function (buf) {
 	if (!Buffer.isBuffer(buf) || buf.length === 0) {
+		if (typeof buf === 'object') {
+			return revert(buf);
+		}
 		return null;
 	}
 	// JSON is much faster than Buffer...
-	var data = JSON.parse(buf);
-	data = revert(data);
-	return data;
+	try {
+		var data = JSON.parse(buf);
+		return revert(data);
+	} catch (error) {
+		return buf;
+	}
 };
 
 function convert(data) {
@@ -32,17 +41,24 @@ function convert(data) {
 	if (data === null && data === undefined) {
 		return data;
 	}
+	var res;
 	var type = typeof data;
 	if (type === 'object' && Array.isArray(data)) {
+		res = [];
 		for (var i = 0, len = data.length; i < len; i++) {
-			data[i] = convert(data[i]);
+			res[i] = convert(data[i]);
 		}
 	} else if (type === 'object' && data !== null) {
-		for (var key in data) {
-			data[key] = convert(data[key]);
+		var keys = Object.keys(data);
+		res = {};
+		for (var j = 0, jen = keys.length; j < jen; j++) {
+			var key = keys[j];
+			res[key] = convert(data[key]);
 		}
+	} else {
+		res = data;
 	}
-	return data;
+	return res;
 }
 
 function revert(data) {
@@ -59,7 +75,9 @@ function revert(data) {
 			data[i] = revert(data[i]);
 		}
 	} else if (type === 'object') {
-		for (var key in data) {
+		var keys = Object.keys(data);
+		for (var j = 0, jen = keys.length; j < jen; j++) {
+			var key = keys[j];
 			data[key] = revert(data[key]);
 		}
 	}

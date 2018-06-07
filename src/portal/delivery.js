@@ -4,15 +4,15 @@ const gn = require('../gracenode');
 const async = gn.async;
 const packer = require('./packer');
 const meshNodes = require('./meshnodes');
-const ipc = require('./ipc');
-const tcp = require('./tcp');
 const udp = require('./udp');
 
-const TCP = 0;
+const RUDP = 0;
 const UDP = 1;
 const RES_BYTES = gn.Buffer.alloc(4);
-RES_BYTES.writeUInt32BE(0x01020304);
-const RES_BYTES_VAL = RES_BYTES.readUInt32BE(0);
+RES_BYTES[0] = 0xde;
+RES_BYTES[1] = 0xaf;
+RES_BYTES[2] = 0xbe;
+RES_BYTES[3] = 0xed;
 
 const handlers = {};
 const responses = {};
@@ -22,7 +22,7 @@ var logger;
 var _sendHandler;
 
 module.exports = {
-	TCP: TCP,
+	RUDP: RUDP,
 	UDP: UDP,
 	config: config,
 	setup: setup,
@@ -34,26 +34,21 @@ module.exports = {
 
 function config(_conf) {
 	logger = gn.log.create('portal.broker.delivery');
-	tcp.config(_conf);
 	udp.config(_conf);
-	ipc.config(_conf);
 	_sendHandler = _send;
+	udp.onTimeOut(_onTimeOut);
 }
 
 function setup(cb) {
 	var tasks;
-	tcp.on(_onRemoteReceive);
 	udp.on(_onRemoteReceive);
-	ipc.on(_onRemoteReceive);
 	tasks = [
-		tcp.setup,
 		udp.setup,
-		ipc.setup,
 		__getInfo
 	];
 	async.series(tasks, cb);
 	function __getInfo(next) {
-		_info[TCP] = tcp.info();
+		_info[RUDP] = udp.info();
 		_info[UDP] = udp.info();
 		next();
 	}
@@ -61,7 +56,7 @@ function setup(cb) {
 
 function info(protocol) {
 	switch (protocol) {
-		case TCP:
+		case RUDP:
 			return _info[protocol];
 		case UDP:
 			return _info[protocol];
@@ -81,7 +76,6 @@ function send(protocol, eventName, nodes, data, cb) {
 	var port = node.port;
 	var me = info();
 	var isSelf = false;
-	var isLocal = false;
 	
 	if (!addr || isNaN(port)) {
 		logger.error(
@@ -95,8 +89,6 @@ function send(protocol, eventName, nodes, data, cb) {
 	if (addr === me.address) {
 		if (port === me.port) {
 			isSelf = true;
-		} else {
-			isLocal = true;
 		}
 	}
 
@@ -109,8 +101,7 @@ function send(protocol, eventName, nodes, data, cb) {
 		'Emitting to:', addr, port,
 		'event:', eventName,
 		'is self:', isSelf,
-		'is local:', isLocal,
-		'protocol (TCP=0 UDP=1):', protocol,
+		'protocol (RUDP=0 UDP=1):', protocol,
 		'response:', hasResponse,
 		'payload data:', data
 	);
@@ -134,7 +125,7 @@ function send(protocol, eventName, nodes, data, cb) {
 		protocol: protocol,
 		eventName: eventName,
 		nodes: meshNodes.toBytes(nodes),
-		payload: packer.pack(data)
+		payload: data
 	});
 	if (hasResponse) {
 		logger.sys('Response callback set as ID', id.toString());
@@ -142,28 +133,17 @@ function send(protocol, eventName, nodes, data, cb) {
 			callback: cb
 		};
 	}
-	_sendHandler(protocol, isLocal, addr, port, packed);
+	_sendHandler(protocol, addr, port, packed);
 }
 
-function _send(protocol, isLocal, addr, port, packed) {
-	
-	// same server different process
-	if (isLocal) {
-		ipc.emit(
-			addr,
-			port,
-			packed
-		);
-		return;
-	}
-
+function _send(protocol, addr, port, packed) {
 	switch (protocol) {
-		case TCP:
-			tcp.emit(
+		case RUDP:
+			udp.remit(
 				addr,
 				port,
 				packed
-			);	
+			);
 		break;
 		case UDP:
 			udp.emit(
@@ -201,7 +181,7 @@ function _onSelfReceive(protocol, eventName, nodes, data, cb) {
 	if (nodes.length) {
 		logger.sys(
 			'Emitting relay from self:',
-			'protocol (TCP=0 UDP=1)', protocol,
+			'protocol (RUDP=0 UDP=1)', protocol,
 			'event', eventName,
 			'payload data', data
 		);
@@ -214,6 +194,32 @@ function _onSelfReceive(protocol, eventName, nodes, data, cb) {
 	}
 }
 
+function _onTimeOut(packet) {
+	if (_isResponsePacket(packet)) {
+		// we do not re-deliver response:
+		// b/c a response must be delivered to a specific node...
+		return;
+	}
+	var unpacked = packer.unpack(packet);
+	var nodes = meshNodes.toList(unpacked.nodes);
+	if (!nodes.length) {
+		// no nodes to re-delivery...
+		return;
+	}
+	// re-deliver to another node
+	logger.sys(
+		'Re-deliver message:',
+		'event', unpacked.eventName,
+		'payload data', unpacked.payload
+	);
+	send(
+		unpacked.protocol,
+		unpacked.eventName,
+		nodes,
+		unpacked.payload
+	);
+}
+
 function _onSelfResponse(res) {
 	var cb = this.cb;
 	if (res instanceof Error) {
@@ -222,20 +228,16 @@ function _onSelfResponse(res) {
 	cb(null, res);
 }
 
-function _onRemoteReceive(buf, response) {
-	__onRemoteReceive(buf, null, response);
-}
-
-function __onRemoteReceive(packed, next, _response) {
+function _onRemoteReceive(packed, _response) {
 	var response = _response || this.response;
-	if (RES_BYTES_VAL === packed.readUInt32BE(0)) {
+	if (_isResponsePacket(packed)) {
 		// response
 		packed = packed.slice(4);
 		var res = packer.unpack(packed);
 		res.id = res.id.toString('hex');
 		logger.sys('Handle response:', res);
 		if (res && responses[res.id]) {
-			var resData = packer.unpack(res.payload);
+			var resData = res.payload;
 			logger.sys(
 				'Invoke response callback:',
 				res.id, resData
@@ -246,62 +248,53 @@ function __onRemoteReceive(packed, next, _response) {
 				responses[res.id].callback(null, resData);
 			}
 			delete responses[res.id];
-			return _callNext(next);
+			return;
 		}
 		logger.sys('Response callback not found:', res, packed);
-		return _callNext(next);
+		return;
 	}
 	// non response
 	var unpacked = packer.unpack(packed);
-	if (!handlers[unpacked.eventName]) {
-		return _callNext(next);
-	}
 	unpacked.nodes = meshNodes.toList(unpacked.nodes);
-	var _handlers = handlers[unpacked.eventName];
-	for (var i = 0, len = _handlers.length; i < len; i++) {
-		_callHandler(unpacked, _handlers[i], response);
-	}
-	_callNext(next);
-}
-
-function _callNext(next) {
-	if (!next) {
-		return;
-	}
-	process.nextTick(next);
-}
-
-function _callHandler(unpacked, handler, response) {
-	var data = packer.unpack(unpacked.payload);
-	logger.sys(
-		'Handled event:', unpacked.eventName,
-		'protocol (TCP=0 UDP=1)', unpacked.protocol,
-		'id', unpacked.id.toString('hex'),
-		'requires response',
-		response ? true : false,
-		'payload data:', data
-	);
-	if (response && unpacked.hasResponse) {
-		handler(data, _onHandlerResponse.bind({
-			unpacked: unpacked,
-			response: response
-		}));
-	} else {
-		handler(data);
-	}
 	if (unpacked.nodes.length) {
 		logger.sys(
 			'Emitting relay:',
-			'protocol (TCP=0 UDP=1)', unpacked.protocol,
+			'protocol (RUDP=0 UDP=1)', unpacked.protocol,
 			'event', unpacked.eventName,
-			'payload data', data
+			'payload data', unpacked.payload
 		);
 		send(
 			unpacked.protocol,
 			unpacked.eventName,
 			unpacked.nodes,
-			data
+			unpacked.payload
 		);			
+	}
+	if (!handlers[unpacked.eventName]) {
+		return;
+	}
+	var _handlers = handlers[unpacked.eventName];
+	for (var i = 0, len = _handlers.length; i < len; i++) {
+		_callHandler(unpacked, _handlers[i], response);
+	}
+}
+
+function _callHandler(unpacked, handler, response) {
+	logger.sys(
+		'Handled event:', unpacked.eventName,
+		'protocol (RUDP=0 UDP=1)', unpacked.protocol,
+		'id', unpacked.id.toString('hex'),
+		'requires response',
+		response ? true : false,
+		'payload data:', unpacked.payload
+	);
+	if (response && unpacked.hasResponse) {
+		handler(unpacked.payload, _onHandlerResponse.bind({
+			unpacked: unpacked,
+			response: response
+		}));
+	} else {
+		handler(unpacked.payload);
 	}
 }
 
@@ -316,13 +309,24 @@ function _onHandlerResponse(data) {
 		unpacked.eventName,
 		data
 	);
-	var res = packer.pack(data);
 	var resPacked = packer.pack({
 		id: unpacked.id,
 		eventName: unpacked.eventName,
-		payload: res,
+		payload: data,
 		isError: isError
 	});
 	response(Buffer.concat([ RES_BYTES, resPacked ]));
+}
+
+function _isResponsePacket(packet) {
+	if (
+		packet[0] === RES_BYTES[0] &&
+		packet[1] === RES_BYTES[1] &&
+		packet[2] === RES_BYTES[2] &&
+		packet[3] === RES_BYTES[3]
+	) {
+		return true;
+	}
+	return false;
 }
 
