@@ -665,13 +665,14 @@ describe('gracenode.http', function () {
     });
 
     it('can read a GET query string with a trailing slash', function (done) {
-        request.GET(http + '/test/get2?boo=BOO&foo=FOO', null, options, function (error, body, status) {
+        request.GET(http + '/test/get2?boo=BOO&foo=FOO&f+oo=F+OO', null, options, function (error, body, status) {
             assert.equal(allRequestHookCalled, true);
             allRequestHookCalled = false;
             assert.equal(error, undefined);
             assert.equal(status, 200);
             assert.equal(body.boo, 'BOO');
             assert.equal(body.foo, 'FOO');
+            assert.equal(body['f oo'], 'F OO');
             done();
         });
     });

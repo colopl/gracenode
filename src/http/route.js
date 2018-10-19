@@ -67,7 +67,8 @@ function parseQuery(list) {
     const query = {};
     for (var i = 0, len = list.length; i < len; i++) {
         const sep = list[i].split('=');
-        query[sep[0]] = typecast(sep[1]);
+        const key = decodeQueryString(sep[0]);
+        query[key] = typecast(sep[1]);
     }
     return query;
 }
@@ -82,8 +83,13 @@ function parseParams(list, names) {
     return params;
 }
 
+function decodeQueryString(value) {
+    value = value.replace(/\+/g, ' ');
+    return decodeURI(value);
+}
+
 function typecast(value) {
-    const val = decodeURI(value);
+    const val = decodeQueryString(value);
     if (isNaN(val)) {
         switch (val) {
             case 'true':
